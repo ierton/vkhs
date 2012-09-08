@@ -1,8 +1,8 @@
 VKHS
 ====
 
-Library written in Haskell provides access to Vkontakte API methods (popular
-Russian social network).
+Library written in Haskell provides access to Vkontakte (popular
+Russian social network) API methods.
 
 Internally, library uses small curl-based HTTP automata and tagsoup for jumping
 over relocations and submitting various 'Yes I agree' forms.
