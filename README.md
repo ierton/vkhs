@@ -1,16 +1,26 @@
 VKHS
 ====
 
-Library written in Haskell Provides access to Vkontakte API methods (russian
-social network). Currently, library supports authentication using scheme for
-standalone applications.
+Library written in Haskell provides access to Vkontakte API methods (popular
+russian social network).
 
-See http://vk.com/developers.php?oid=-1&p=Авторизация_клиентских_приложений
+See [documentation in Russian](http://vk.com/developers.php?oid=-1&p=Авторизация_клиентских_приложений)
 for details
 
-Internally, the library uses small HTTP fsm, curl and tagsoup for
-jumping over relocations and submitting various 'Yes I agree' forms.
+Internally, library uses small curl-based HTTP automata and tagsoup for jumping
+over relocations and submitting various 'Yes I agree' forms.
+
+Limitations
+===========
+
+* 'Invalid password' answers are ignored (on TODO list)
+* Captchas are treated as errors
+* Standalone authentication only
+
+License
+=======
 
 BSD3 license
 
 Copyright (c) 2012, Sergey Mironov <ierton@gmail.com>
+
