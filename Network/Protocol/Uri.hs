@@ -107,6 +107,7 @@ module Network.Protocol.Uri (
   -- * Printing URIs
   , showUri
   , showPath
+  , showAuthority
 
   -- * Filename related utilities.
 

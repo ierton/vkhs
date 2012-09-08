@@ -62,22 +62,14 @@ printHost (RegName r)  = ss r
 showHost :: Host -> String
 showHost = flip printHost ""
 
--- instance Show Host where
---   showsPrec _ (Hostname d) = shows d
---   showsPrec _ (IP i)       = shows i 
---   showsPrec _ (RegName r)  = ss r
-
 printAuthority :: Authority -> ShowS
 printAuthority (Authority u h p) =
     let u' = if null u then id else ss u . ss "@"
         p' = maybe id (\s -> sc ':' . shows s) p
     in u' . printHost h . p'
 
--- instance Show Authority where
---   showsPrec _ (Authority u h p) =
---     let u' = if null u then id else ss u . ss "@"
---         p' = maybe id (\s -> sc ':' . shows s) p
---     in u' . shows h . p'
+showAuthority :: Authority -> String
+showAuthority = flip printAuthority ""
 
 printUri :: Uri -> ShowS
 printUri (Uri _ s a p q f) =

@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Prelude as P hiding ((.), id, catch)
+import Prelude hiding ((.), id, catch)
 
 import Data.List
 import Data.String
@@ -34,10 +34,22 @@ import Network.Protocol.Uri.Query
 import Network.Protocol.Cookie as C
 
 import Text.HTML.TagSoup
+import Text.Printf
+import System.IO
 
 import Debug
 import Forms
 import Test
+
+-- Test applications: 
+--
+-- pirocheck
+-- ID 3115622
+-- Key IOmaB10C1v7RoMiM6Lnu
+--
+-- pirofetch
+-- ID 3082266
+-- Key <lost>
 
 data Env = Env [(String,String)]
 
@@ -46,6 +58,18 @@ mkEnv = Env
     [ ("email","ierton@gmail.com")
     , ("pass","toavo13")
     ]
+
+vk_start_action :: Action
+vk_start_action = OpenUrl start_url mempty where
+    start_url = (\f -> f $ toUri "http://oauth.vk.com/authorize") 
+        $ set query $ bw params
+            -- [ ("client_id",     "3082266") -- pirofetch
+            [ ("client_id",     "3115622")
+            , ("scope",         "wall,group")
+            , ("redirect_uri",  "http://oauth.vk.com/blank.html")
+            , ("display",       "wap")
+            , ("response_type", "token")
+            ]
 
 type Url = String
 type Email = String
@@ -83,6 +107,10 @@ type Page = (Http Response, Body)
 
 data Action = OpenUrl Uri Cookies | SendForm Form Cookies
     deriving (Show)
+
+actionUri :: Action -> Uri
+actionUri (OpenUrl u _) = u
+actionUri (SendForm f _) = toUri . action $ f
 
 data Decision = Decision Action (Either String Page)
     deriving (Show)
@@ -162,17 +190,6 @@ vk_post f c = liftVK $ do
     } `catch`
         (\(e::CURLcode) -> return $ Left ("CURL error: " ++ (show e)))
 
-vk_start_action :: Action
-vk_start_action = OpenUrl start_url mempty where
-    start_url = (\f -> f $ toUri "http://oauth.vk.com/authorize") 
-        $ set query $ bw params
-            [ ("client_id",     "3082266")
-            , ("scope",         "wall,group")
-            , ("redirect_uri",  "http://oauth.vk.com/blank.html")
-            , ("display",       "wap")
-            , ("response_type", "token")
-            ]
-
 -- Splits parameters into 3 categories:
 -- 1)without a value, 2)filled from user dictionary, 3)with default values
 split_inputs :: [(String,String)]
@@ -217,25 +234,26 @@ vk_analyze ((h,b),c)
         f = parseTags >>> gatherForms $ b
         a = uri_fragment h
 
-vk_dump_page :: Uri -> Page -> IO ()
-vk_dump_page u p = undefined
-    
+vk_dump_page :: Int -> Uri -> Page -> IO ()
+vk_dump_page n u (h,b) = 
+    let name = printf "%02d-%s.html" n (showAuthority (get authority u))
+    in bracket (openFile name WriteMode) (hClose) $ \f -> do
+        hPutStrLn f b
+
 vk_travel :: IO (Either ExitReason ())
-vk_travel = runVK mkEnv $ loop vk_start_action where 
+vk_travel = runVK mkEnv $ loop 0 vk_start_action where 
     print = liftIO . putStrLn
-    loop act = do
+    loop n act = do
         print "====================="
         print $ show act
         print "====================="
-        ans@((h,b),c) <- vk_move act
-        print "s - show"
-        c <- liftIO getChar
-        case c of
-            's' -> print b
-            _ -> return ()
+        ans@(p,c) <- vk_move act
+        liftIO $ vk_dump_page n (actionUri act) p
         act' <- vk_analyze ans
         liftIO (threadDelay $ fromInteger 1000*1000)
-        loop act'
+        print "Hit a char to continue"
+        liftIO $ getChar
+        loop (n+1) act'
 
         
 
