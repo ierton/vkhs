@@ -1,4 +1,4 @@
-module VKHS.Types where
+module Web.VKHS.Types where
 
 -- | AccessToken is a authentication data, required by all VK API
 -- functions. It is a tuple of following fields: access_token,user_id,expires_in

@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module VKHS.Login
+module Web.VKHS.Login
     ( login
     , Env(..)
     , env
@@ -44,7 +44,7 @@ import Text.HTML.TagSoup
 import Text.Printf
 import System.IO
 
-import VKHS.Types
+import Web.VKHS.Types
 
 -- Test applications: 
 --
@@ -154,8 +154,8 @@ liftVK m = liftIO m >>= either fail return
 
 dbgVK :: Verbosity -> IO () -> VK ()
 dbgVK v act = ask >>= \e -> do
-        if v >= (verbose e) then liftIO $ act
-                            else return ()
+        if v >= (verbose e) then return ()
+                            else liftIO $ act
 
 when_debug = dbgVK Debug
 when_trace = dbgVK Trace

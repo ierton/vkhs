@@ -30,12 +30,13 @@ SUCH DAMAGE.
 
 module Network.Protocol.Mime where
 
+import Data.Map
+
+
 {- |
 Handling mime types. This module contains a mapping from file extensions to
 mime-types taken from the Apache webserver project.
 -}
-
-import Data.Map
 
 type Mime = String
 
