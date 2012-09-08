@@ -19,6 +19,7 @@ library
   exposed-modules:   Web.VKHS
                      Web.VKHS.Types
                      Web.VKHS.Login
+                     Web.VKHS.Api
 
   build-depends:     base ==4.5.*,
                      containers ==0.4.*,

@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Web.VKHS.Login
@@ -6,12 +5,12 @@ module Web.VKHS.Login
     , Env(..)
     , env
     , AccessRight(..)
+    , Verbosity(..)
     ) where
 
 import Prelude hiding ((.), id, catch)
 
 import Control.Applicative
-import Control.Concurrent (threadDelay)
 import Control.Category
 import Control.Exception
 import Control.Failure
@@ -22,7 +21,6 @@ import Control.Monad.Writer
 import qualified Control.Monad.State as S
 
 import qualified Data.ByteString.Char8 as BS
-import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import Data.List
 import Data.String
 import Data.Char
@@ -45,6 +43,7 @@ import Text.Printf
 import System.IO
 
 import Web.VKHS.Types
+import Web.VKHS.Curl
 
 -- Test applications: 
 --
@@ -62,54 +61,8 @@ type Uid = String
 type Password = String
 type Body = String
 
-data Verbosity = Normal | Trace | Debug
-    deriving(Enum,Eq,Ord,Show)
-
--- | Access rigth to request from VK.
---
--- See API docs http://vk.com/developers.php?oid=-1&p=Права_доступа_приложений (in
--- Russian) for details
-data AccessRight
-    = Notify  -- Пользователь разрешил отправлять ему уведомления.
-    | Friends -- Доступ к друзьям.
-    | Photos  -- Доступ к фотографиям.
-    | Audio   -- Доступ к аудиозаписям.
-    | Video   -- Доступ к видеозаписям.
-    | Docs    -- Доступ к документам.
-    | Notes   -- Доступ заметкам пользователя.
-    | Pages   -- Доступ к wiki-страницам.
-    | Status  -- Доступ к статусу пользователя.
-    | Offers  -- Доступ к предложениям (устаревшие методы).
-    | Questions   -- Доступ к вопросам (устаревшие методы).
-    | Wall    -- Доступ к обычным и расширенным методам работы со стеной.
-            -- Внимание, данное право доступа недоступно для сайтов (игнорируется при попытке авторизации).
-    | Groups  -- Доступ к группам пользователя.
-    | Messages    -- (для Standalone-приложений) Доступ к расширенным методам работы с сообщениями.
-    | Notifications   -- Доступ к оповещениям об ответах пользователю.
-    | Stats   -- Доступ к статистике групп и приложений пользователя, администратором которых он является.
-    | Ads     -- Доступ к расширенным методам работы с рекламным API.
-    | Offline -- Доступ к API в любое время со стороннего сервера. 
-    deriving(Show)
-
 toarg :: [AccessRight] -> String
 toarg = intercalate "," . map (map toLower . show)
-
-data Env = Env
-    { verbose :: Verbosity
-    -- ^ Verbosity level
-    , useragent :: String
-    -- ^ User agent identifier. Has an affordable default.
-    , formdata :: [(String,String)]
-    -- ^ A dictionary used for filling forms
-    , clientId :: ClientId
-    -- ^ Application ID provided by vk.com
-    , delay_ms :: Int
-    -- ^ Delay in milliseconds. Set after each request to prevent application
-    -- from being blocked for flooding.
-    , ac_rights :: [AccessRight]
-    -- ^ Access rights to request
-    }
-    deriving (Show)
 
 -- | Gathers login information into Env data set. 
 env :: String 
@@ -128,8 +81,6 @@ env cid email pwd ar = Env
     cid
     500
     ar
-
-type ClientId = String
 
 vk_start_action :: ClientId -> [AccessRight] -> Action
 vk_start_action cid ac = OpenUrl start_url mempty where
@@ -154,7 +105,7 @@ liftVK m = liftIO m >>= either fail return
 
 dbgVK :: Verbosity -> IO () -> VK ()
 dbgVK v act = ask >>= \e -> do
-        if v >= (verbose e) then return ()
+        if v > (verbose e) then return ()
                             else liftIO $ act
 
 when_debug = dbgVK Debug
@@ -171,45 +122,21 @@ actionUri :: Action -> Uri
 actionUri (OpenUrl u _) = u
 actionUri (SendForm f _) = toUri . action $ f
 
--- | Generic request sender. Uses delay to prevent application from being
--- blocked for flooding
-vk_curl :: Writer [CURLoption] () -> VK Page
-vk_curl w = do
-    let askE x = ask >>= return . x
-    v <- askE verbose
-    a <- askE useragent
-    d <- askE delay_ms
-    liftVK $ do
-        buff <- newIORef BS.empty
-        bracket (curl_easy_init) (curl_easy_cleanup) $ \curl -> do {
-            let 
-                memwrite n = atomicModifyIORef buff
-                    (\o -> (BS.append o n, CURL_WRITEFUNC_OK))
-            in
-            curl_easy_setopt curl $
-                [ CURLOPT_HEADER         True
-                , CURLOPT_WRITEFUNCTION (Just $ memwrite)
-                , CURLOPT_SSL_VERIFYPEER False
-                , CURLOPT_USERAGENT $ BS.pack a
-                , CURLOPT_VERBOSE (v == Debug )
-                ] ++ (execWriter w);
-            curl_easy_perform curl;
-            threadDelay (1000 * d); -- delay in microseconds
-            b <- readIORef buff ;
-            return (parseResponse $ BS.unpack b) ;
-        } `catch`
-            (\(e::CURLcode) -> return $ Left ("CURL error: " ++ (show e)))
+liftEIO act = (liftIO act) >>= either fail return
 
 -- | Send a get-request to the server
 vk_get :: Uri -> Cookies -> VK Page
 vk_get u c = let
     c' = (BS.pack $ bw cookie $ map toShort $ bw gather c )
     u' = (BS.pack $ showUri u)
-    in vk_curl $ do
-        when ((not . BS.null) c') $ do
-            tell [CURLOPT_COOKIE c']
-        when ((not . BS.null) u') $ do
-            tell [CURLOPT_URL u']
+    in do
+        e <- ask
+        s <- liftEIO $ vk_curl e $ do
+            when ((not . BS.null) c') $ do
+                tell [CURLOPT_COOKIE c']
+            when ((not . BS.null) u') $ do
+                tell [CURLOPT_URL u']
+        liftVK (return $ parseResponse s)
 
 -- | Send a form to the server.
 vk_post :: FilledForm -> Cookies -> VK Page
@@ -217,13 +144,16 @@ vk_post f c = let
     c' = (BS.pack $ bw cookie $ map toShort $ bw gather c )
     p' = (BS.pack $ bw params $ M.toList $ inputs f)
     u' = (BS.pack $ action f)
-    in vk_curl $ do
-        when ((not . BS.null) c') $ do
-            tell [CURLOPT_COOKIE c']
-        when ((not . BS.null) u') $ do
-            tell [CURLOPT_URL u']
-        tell [CURLOPT_POST True]
-        tell [CURLOPT_COPYPOSTFIELDS p']
+    in do
+        e <- ask
+        s <- liftEIO $ vk_curl e $ do
+            when ((not . BS.null) c') $ do
+                tell [CURLOPT_COOKIE c']
+            when ((not . BS.null) u') $ do
+                tell [CURLOPT_URL u']
+            tell [CURLOPT_POST True]
+            tell [CURLOPT_COPYPOSTFIELDS p']
+        liftVK (return $ parseResponse s)
     
 -- | Splits parameters into 3 categories:
 -- 1)without a value, 2)filled from user dictionary, 3)with default values
