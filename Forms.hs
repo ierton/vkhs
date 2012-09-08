@@ -21,7 +21,7 @@
  - CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  - SOFTWARE.
  -
--}
+ -}
 module Forms 
    ( -- module Network.Shpider.Pairs 
    Form (..)
@@ -35,21 +35,12 @@ module Forms
    where
 
 import Data.Maybe
-
+import Data.Char
+import Control.Arrow ( first )
 import qualified Data.Map as M
-
 import Text.HTML.TagSoup.Parsec
 
-import Data.Char
-
-import Control.Arrow ( first )
-
--- import Network.Shpider.TextUtils
--- import Network.Shpider.Pairs
-
--- | Either GET or POST.
-data Method =
-   GET | POST
+data Method = GET | POST
    deriving Show
 
 -- | Plain old form: Method, action and inputs.
