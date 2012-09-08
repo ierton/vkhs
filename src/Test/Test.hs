@@ -1,14 +1,13 @@
-module Test where
+module Test.Test where
 
 import Data.Label
 import Network.Protocol.Http
 import Network.Protocol.Uri
 import Network.Protocol.Uri.Query
 import Network.Protocol.Cookie as C
+import Network.Shpider.Forms
+
 import Text.HTML.TagSoup
-
-import Forms
-
 
 tryparse = gatherForms . parseTags 
 

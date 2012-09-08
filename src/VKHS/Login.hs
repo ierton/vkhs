@@ -1,16 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-import Prelude hiding ((.), id, catch)
+module VKHS.Login
+    ( login
+    , Env(..)
+    , env
+    , AccessRight(..)
+    ) where
 
-import Data.List
-import Data.String
-import Data.Monoid
-import Data.Either
-import Data.Label
-import qualified Data.Map as M
-import Data.Maybe
-import Data.Typeable
+import Prelude hiding ((.), id, catch)
 
 import Control.Applicative
 import Control.Concurrent (threadDelay)
@@ -25,21 +23,28 @@ import qualified Control.Monad.State as S
 
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
-import Network.Curlhs.Core
+import Data.List
+import Data.String
+import Data.Char
+import Data.Monoid
+import Data.Either
+import Data.Label
+import qualified Data.Map as M
+import Data.Maybe
+import Data.Typeable
 
+import Network.Curlhs.Core
 import Network.Protocol.Http
 import Network.Protocol.Uri
 import Network.Protocol.Uri.Query
 import Network.Protocol.Cookie as C
+import Network.Shpider.Forms
 
 import Text.HTML.TagSoup
 import Text.Printf
 import System.IO
 
-import Debug
-import Forms
-import Test
-
+import VKHS.Types
 
 -- Test applications: 
 --
@@ -60,6 +65,35 @@ type Body = String
 data Verbosity = Normal | Trace | Debug
     deriving(Enum,Eq,Ord,Show)
 
+-- | Access rigth to request from VK.
+--
+-- See API docs http://vk.com/developers.php?oid=-1&p=Права_доступа_приложений (in
+-- Russian) for details
+data AccessRight
+    = Notify  -- Пользователь разрешил отправлять ему уведомления.
+    | Friends -- Доступ к друзьям.
+    | Photos  -- Доступ к фотографиям.
+    | Audio   -- Доступ к аудиозаписям.
+    | Video   -- Доступ к видеозаписям.
+    | Docs    -- Доступ к документам.
+    | Notes   -- Доступ заметкам пользователя.
+    | Pages   -- Доступ к wiki-страницам.
+    | Status  -- Доступ к статусу пользователя.
+    | Offers  -- Доступ к предложениям (устаревшие методы).
+    | Questions   -- Доступ к вопросам (устаревшие методы).
+    | Wall    -- Доступ к обычным и расширенным методам работы со стеной.
+            -- Внимание, данное право доступа недоступно для сайтов (игнорируется при попытке авторизации).
+    | Groups  -- Доступ к группам пользователя.
+    | Messages    -- (для Standalone-приложений) Доступ к расширенным методам работы с сообщениями.
+    | Notifications   -- Доступ к оповещениям об ответах пользователю.
+    | Stats   -- Доступ к статистике групп и приложений пользователя, администратором которых он является.
+    | Ads     -- Доступ к расширенным методам работы с рекламным API.
+    | Offline -- Доступ к API в любое время со стороннего сервера. 
+    deriving(Show)
+
+toarg :: [AccessRight] -> String
+toarg = intercalate "," . map (map toLower . show)
+
 data Env = Env
     { verbose :: Verbosity
     -- ^ Verbosity level
@@ -70,35 +104,45 @@ data Env = Env
     , clientId :: ClientId
     -- ^ Application ID provided by vk.com
     , delay_ms :: Int
-    -- ^ Delay in milliseconds
+    -- ^ Delay in milliseconds. Set after each request to prevent application
+    -- from being blocked for flooding.
+    , ac_rights :: [AccessRight]
+    -- ^ Access rights to request
     }
     deriving (Show)
 
--- | Creates VK initialisation data
-mkEnv :: ClientId -> Email -> Password -> Env
-mkEnv cid email pwd = Env
+-- | Gathers login information into Env data set. 
+env :: String 
+    -- ^ Client ID (provided by Application registration form)
+    -> String
+    -- ^ User email, able to authenticate the user
+    -> String
+    -- ^ User password
+    -> [AccessRight]
+    -- ^ Rights to request
+    -> Env
+env cid email pwd ar = Env
     Normal
     "Mozilla/5.0 (X11; Linux x86_64; rv:12.0) Gecko/20120702 Firefox/12.0"
     [ ("email",email) , ("pass",pwd) ]
     cid
     500
+    ar
 
 type ClientId = String
 
-vk_start_action :: ClientId -> Action
-vk_start_action cid = OpenUrl start_url mempty where
+vk_start_action :: ClientId -> [AccessRight] -> Action
+vk_start_action cid ac = OpenUrl start_url mempty where
     start_url = (\f -> f $ toUri "http://oauth.vk.com/authorize") 
         $ set query $ bw params
             [ ("client_id",     cid)
-            , ("scope",         "wall,group")
+            , ("scope",         toarg ac)
             , ("redirect_uri",  "http://oauth.vk.com/blank.html")
             , ("display",       "wap")
             , ("response_type", "token")
             ]
 
 type FilledForm = Form
-
-type AccessToken = (String,String,String)
 
 type VK a = ReaderT Env (ErrorT String IO) a
 
@@ -112,9 +156,6 @@ dbgVK :: Verbosity -> IO () -> VK ()
 dbgVK v act = ask >>= \e -> do
         if v >= (verbose e) then liftIO $ act
                             else return ()
-
-debugVK v s = dbgVK v (hPutStrLn stderr s)
-printVK v s = dbgVK v (hPutStrLn stdout s)
 
 when_debug = dbgVK Debug
 when_trace = dbgVK Trace
@@ -130,7 +171,8 @@ actionUri :: Action -> Uri
 actionUri (OpenUrl u _) = u
 actionUri (SendForm f _) = toUri . action $ f
 
--- | Generic request sender
+-- | Generic request sender. Uses delay to prevent application from being
+-- blocked for flooding
 vk_curl :: Writer [CURLoption] () -> VK Page
 vk_curl w = do
     let askE x = ask >>= return . x
@@ -239,8 +281,9 @@ vk_dump_page n u (h,b) =
         hPutStrLn f b
         hPutStrLn stderr $ "dumped: name " ++ (name) ++ " size " ++ (show $ length b)
 
-vk_login :: Env -> IO (Either String AccessToken)
-vk_login e =  runVK e $ loop 0 (vk_start_action $ clientId e) where 
+-- | Executes login procedure. AccessToken is returned on success
+login :: Env -> IO (Either String AccessToken)
+login e =  runVK e $ loop 0 (vk_start_action (clientId e) (ac_rights e)) where 
     loop n act = do
         when_trace $ printf "VK => %02d %s" n (show act)
         ans@(p,c) <- vk_move act
@@ -248,11 +291,7 @@ vk_login e =  runVK e $ loop 0 (vk_start_action $ clientId e) where
         a <- vk_analyze ans
         case a of
             Right act' -> do
-                liftIO getChar
                 loop (n+1) act'
             Left at -> do
                 return at
-    
-        
--- vk_test_login = vk_travel (mkEnv "3115622")
 

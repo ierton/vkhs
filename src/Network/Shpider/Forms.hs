@@ -22,8 +22,8 @@
  - SOFTWARE.
  -
  -}
-module Forms 
-   ( -- module Network.Shpider.Pairs 
+module Network.Shpider.Forms 
+   (
    Form (..)
    , Method (..)
    , gatherForms
