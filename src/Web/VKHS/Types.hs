@@ -1,10 +1,12 @@
 module Web.VKHS.Types where
 
 -- | AccessToken is a authentication data, required by all VK API
--- functions. It is a tuple of following fields: access_token,user_id,expires_in
--- See http://vk.com/developers.php?oid=-1&p=Авторизация_клиентских_приложений
--- (in Russian) for details
+-- functions. It is a tuple of access_token, user_id, expires_in fields,
+-- returned by login procedure.
 type AccessToken = (String,String,String)
+
+-- See http://vk.com/developers.php?oid=-1&p=Авторизация_клиентских_приложений
+-- (in Russian) for more details
 
 -- | Access rigth to request from VK.
 -- See API docs http://vk.com/developers.php?oid=-1&p=Права_доступа_приложений (in
@@ -31,11 +33,13 @@ data AccessRight
     | Offline -- Доступ к API в любое время со стороннего сервера. 
     deriving(Show)
 
+-- | Verbosity level. Setting Debug results in dumping *html files
 data Verbosity = Normal | Trace | Debug
     deriving(Enum,Eq,Ord,Show)
 
 type ClientId = String
 
+-- | VKHS environment
 data Env = Env
     { verbose :: Verbosity
     -- ^ Verbosity level
