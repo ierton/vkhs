@@ -59,6 +59,8 @@ Limitations
 * Implicit-flow authentication, see [documentation in
   Russian](http://vk.com/developers.php?oid=-1&p=Авторизация_клиентских_приложений)
   for details
+* Probably, low speed due to restarting curl session on every request. But
+  anyway, vk.com limits request rate to 3 per second.
 
 License
 =======
