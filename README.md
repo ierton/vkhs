@@ -28,7 +28,7 @@ password with correct values):
 
 client\_id is an application identifier, provided by vk.com. Users receive it
 after registering their applications after SMS confirmation. Registration form is 
-located [here](http://vk.com/apps.php?act=add).
+located [here](http://vk.com/editapp?act=create).
 
 Internally, library uses small curl-based HTTP automata and tagsoup for jumping
 over relocations and submitting various 'Yes I agree' forms. Curl .so library is
