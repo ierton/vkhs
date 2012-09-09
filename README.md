@@ -11,7 +11,7 @@ Following example illustrates basic usage (please fill client\_id, email and
 password with correct values):
 
     import Web.VKHS.Login
-    import Web.VKHS.Api
+    import Web.VKHS.API
 
     main = do
         let client_id = "111111"

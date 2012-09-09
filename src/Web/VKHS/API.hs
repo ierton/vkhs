@@ -1,6 +1,11 @@
-module Web.VKHS.Api where
+module Web.VKHS.API
+    ( api
+    )  where
 
+import Control.Monad
+import Control.Monad.Trans
 import Control.Monad.Writer
+import Control.Monad.Error
 
 import Data.Label
 import qualified Data.ByteString.Char8 as BS
@@ -20,6 +25,8 @@ api :: Env -> AccessToken -> String -> Parameters -> IO (Either String String)
 api e (at,_,_) mn mp =
     let uri = BS.pack $ showUri $ (\f -> f $ toUri $ printf "https://api.vk.com/method/%s" mn) $
                 set query $ bw params (("access_token",at):mp)
-    in vk_curl e $ do
-        tell [CURLOPT_URL  uri]
+    in runErrorT $ do
+        r <- ErrorT $ vk_curl e (tell [CURLOPT_URL  uri])
+        (_,b) <- ErrorT $ return $ parseResponse r
+        return b
 
