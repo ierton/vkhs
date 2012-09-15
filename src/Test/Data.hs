@@ -1,4 +1,4 @@
-module Test.Test where
+module Test.Data where
 
 import Data.Label
 import Network.Protocol.Http

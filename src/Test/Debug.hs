@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Debug where
+module Test.Debug where
 
 import Control.Monad
 import Control.Monad.Trans

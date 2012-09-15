@@ -1,7 +1,7 @@
 
 name:                VKHS
-version:             0.1.0
-synopsis:            Provides access to Vkontakte (popular Russian social network) API
+version:             0.1.3
+synopsis:            Provides access to Vkontakte social network, popular in Russia
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
     with user during Implicit-flow authentication.
@@ -13,7 +13,7 @@ maintainer:          ierton@gmail.com
 copyright:           Copyright (c) 2012, Sergey Mironov
 category:            Web
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.6
 homepage:            http://github.com/ierton/vkhs
 
 source-repository head
@@ -22,11 +22,13 @@ source-repository head
 
 library
   hs-source-dirs:    src
+  other-modules:     Test.Debug, Test.Data, Test.Api, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data, Data.Label, Data.Label.PureM, Data.Label.Pure, Data.Label.MaybeM, Data.Label.Maybe, Data.Label.Derive, Data.Label.Abstract
   exposed-modules:   Web.VKHS
-                     Web.VKHS.Types
-                     Web.VKHS.Login
                      Web.VKHS.API
                      Web.VKHS.API.JSON
+                     Web.VKHS.Curl
+                     Web.VKHS.Login
+                     Web.VKHS.Types
 
   build-depends:     base >=4.5 && <5,
                      json ==0.5.*,
