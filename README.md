@@ -1,7 +1,7 @@
 VKHS
 ====
 
-VKHS written in Haskell and provides access to [Vkontakte][1] social network,
+VKHS is written in Haskell and provides access to [Vkontakte][1] social network,
 popular mainly in Russia. Library can be used to login into the network as a
 standalone application (OAuth implicit flow as they call it). Interaction with
 user is not required. For now, vkhs offers limited error detection and no

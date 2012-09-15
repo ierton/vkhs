@@ -66,13 +66,13 @@ toarg = intercalate "," . map (map toLower . show)
 
 -- | Gathers login information into Env data set. 
 env :: String 
-    -- ^ Client ID (provided by Application registration form)
+    -- ^ Client ID (provided by VKontakte, also known as application ID)
     -> String
     -- ^ User email, able to authenticate the user
     -> String
     -- ^ User password
     -> [AccessRight]
-    -- ^ Rights to request
+    -- ^ Access rights to request
     -> Env
 env cid email pwd ar = Env
     Normal
@@ -211,7 +211,7 @@ vk_dump_page n u (h,b) =
         hPutStrLn f b
         hPutStrLn stderr $ "dumped: name " ++ (name) ++ " size " ++ (show $ length b)
 
--- | Executes login procedure. AccessToken is returned on success
+-- | Start login procedure, return AccessToken on success
 login :: Env -> IO (Either String AccessToken)
 login e =  runVK e $ loop 0 (vk_start_action (clientId e) (ac_rights e)) where 
     loop n act = do

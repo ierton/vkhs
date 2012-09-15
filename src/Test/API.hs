@@ -1,7 +1,7 @@
-module Test.Api where
+module Test.API where
 
 import Web.VKHS.Login
-import Web.VKHS.Api
+import Web.VKHS.API
 import Text.Printf
 
 -- | Almost working example. Just set correct values for client_id/login/password
