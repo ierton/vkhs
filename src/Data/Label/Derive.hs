@@ -1,32 +1,3 @@
-{-
-Copyright (c) Erik Hesselink & Sebastiaan Visser 2008
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-3. Neither the name of the author nor the names of his contributors
-   may be used to endorse or promote products derived from this software
-   without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-SUCH DAMAGE.
--}
 {-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE
     TemplateHaskell
@@ -34,6 +5,7 @@ SUCH DAMAGE.
   , FlexibleContexts
   , FlexibleInstances
   , TypeOperators
+  , CPP
   #-}
 module Data.Label.Derive
 ( mkLabels
@@ -151,7 +123,13 @@ derive makeLabel signatures concrete tyname vars total ((field, _, fieldtyp), ct
   where
 
     -- Generate an inline declaration for the label.
+    --
+    -- Type of InlineSpec removed in TH-2.8.0 (GHC 7.6)
+#if MIN_VERSION_template_haskell(2,8,0)
+    inline = PragmaD (InlineP labelName Inline FunLike (FromPhase 0))
+#else
     inline = PragmaD (InlineP labelName (InlineSpec True True (Just (True, 0))))
+#endif
     labelName = mkName (makeLabel (nameBase field))
 
     -- Build a single record label definition for labels that might fail.
@@ -185,13 +163,13 @@ derive makeLabel signatures concrete tyname vars total ((field, _, fieldtyp), ct
     inputType = return $ foldr (flip AppT) (ConT tyname) (map tvToVarT (reverse prettyVars))
 
     -- Convert a type variable binder to a regular type variable.
-    tvToVarT (PlainTV tv) = VarT tv
-    tvToVarT _            = fclError "No support for special-kinded type variables."
+    tvToVarT (PlainTV  tv     ) = VarT tv
+    tvToVarT (KindedTV tv kind) = SigT (VarT tv) kind
 
     -- Prettify type variables.
-    arrow          = varT (mkName "~>")
+    arrow          = varT (mkName "arr")
     prettyVars     = map prettyTyVar vars
-    forallVars     = PlainTV (mkName "~>") : prettyVars
+    forallVars     = PlainTV (mkName "arr") : prettyVars
     prettyFieldtyp = prettyType fieldtyp
 
     -- Q style record updating.
