@@ -60,7 +60,7 @@ mail those .html to me if problem appears.
 
 [@Limitations@]
 
-    * \'Invalid password\' answers are ignored (on TODO list)
+    * Ignores \'Invalid password\' answers
 
     * Captchas are treated as errors
 

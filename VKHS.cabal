@@ -22,7 +22,7 @@ source-repository head
 
 library
   hs-source-dirs:    src
-  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data, Data.Label, Data.Label.PureM, Data.Label.Pure, Data.Label.MaybeM, Data.Label.Maybe, Data.Label.Derive, Data.Label.Abstract
+  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data  
   exposed-modules:   Web.VKHS
                      Web.VKHS.API
                      Web.VKHS.API.JSON
@@ -45,5 +45,6 @@ library
                      utf8-string ==0.3.*,
                      bimap ==0.2.*,
                      template-haskell ==2.8.*,
-                     transformers ==0.3.*
+                     transformers ==0.3.*,
+                     fclabels >=1.1.4
 
