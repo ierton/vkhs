@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.1.4
+version:             0.1.5
 synopsis:            Provides access to Vkontakte social network, popular in Russia
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -32,7 +32,7 @@ library
 
   build-depends:     base >=4.5 && <5,
                      json ==0.5.*,
-                     containers ==0.4.*,
+                     containers ==0.5.*,
                      tagsoup-parsec ==0.0.*,
                      tagsoup ==0.12.*,
                      mtl ==2.1.*,
@@ -44,6 +44,6 @@ library
                      split ==0.2.*,
                      utf8-string ==0.3.*,
                      bimap ==0.2.*,
-                     template-haskell ==2.7.*,
+                     template-haskell ==2.8.*,
                      transformers ==0.3.*
 
