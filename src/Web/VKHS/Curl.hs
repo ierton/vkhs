@@ -16,7 +16,7 @@ import qualified Data.ByteString.Char8 as BS
 
 -- | Generic request sender. Uses delay to prevent application from being
 -- blocked for flooding
-vk_curl :: Env -> Writer [CURLoption] () -> IO (Either String String)
+vk_curl :: Env a -> Writer [CURLoption] () -> IO (Either String String)
 vk_curl e w = do
     let askE x = return (x e)
     v <- askE verbose

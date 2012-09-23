@@ -82,3 +82,4 @@ module Web.VKHS
 import Web.VKHS.Types
 import Web.VKHS.Login
 import Web.VKHS.API
+

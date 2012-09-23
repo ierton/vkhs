@@ -1,10 +1,10 @@
 
 name:                VKHS
-version:             0.1.6
-synopsis:            Provides access to Vkontakte social network, popular in Russia
+version:             0.2.0
+synopsis:            Provides access to Vkontakte social network
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
-    with user during Implicit-flow authentication.
+    with the user during Implicit-flow authentication.
 
 license:             BSD3
 license-file:        LICENSE
@@ -19,6 +19,10 @@ homepage:            http://github.com/ierton/vkhs
 source-repository head
     type:     git
     location: https://github.com/ierton/vkhs.git
+
+executable vkq
+  hs-source-dirs:    src
+  main-is:           VKQ.hs
 
 library
   hs-source-dirs:    src
@@ -46,5 +50,6 @@ library
                      bimap ==0.2.*,
                      template-haskell ==2.8.*,
                      transformers ==0.3.*,
-                     fclabels >=1.1.4
+                     fclabels >=1.1.4 && <1.1.6,
+                     optparse-applicative >=0.4 && <0.6
 

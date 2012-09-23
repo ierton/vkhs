@@ -15,5 +15,6 @@ import qualified Web.VKHS.API as Base
 liftR (Ok a) = return a
 liftR (Error s) = fail s
 
-api :: Env -> AccessToken -> String -> [(String,String)] -> IO (Either String JSValue)
-api e a mn mp = runErrorT $ ErrorT (Base.api e a mn mp)  >>= liftR . J.decode
+api :: Env CallEnv -> String -> [(String,String)] -> IO (Either String JSValue)
+api e mn mp = runErrorT $ ErrorT (Base.api e mn mp)  >>= liftR . J.decode
+

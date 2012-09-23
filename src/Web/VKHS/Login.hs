@@ -2,10 +2,7 @@
 
 module Web.VKHS.Login
     ( login
-    , Env(..)
     , env
-    , AccessRight(..)
-    , Verbosity(..)
     ) where
 
 import Prelude hiding ((.), id, catch)
@@ -73,17 +70,16 @@ env :: String
     -- ^ User password
     -> [AccessRight]
     -- ^ Access rights to request
-    -> Env
-env cid email pwd ar = Env
-    Normal
-    "Mozilla/5.0 (X11; Linux x86_64; rv:12.0) Gecko/20120702 Firefox/12.0"
+    -> Env LoginEnv
+env cid email pwd ar = mkEnv 
+  (LoginEnv
     [ ("email",email) , ("pass",pwd) ]
-    cid
-    500
     ar
+    cid
+  )
 
-vk_start_action :: ClientId -> [AccessRight] -> Action
-vk_start_action cid ac = OpenUrl start_url mempty where
+vk_start_action :: ClientId -> [AccessRight] -> ActionHist
+vk_start_action cid ac = AH [] $ OpenUrl start_url mempty where
     start_url = (\f -> f $ toUri "http://oauth.vk.com/authorize") 
         $ set query $ bw params
             [ ("client_id",     cid)
@@ -95,9 +91,9 @@ vk_start_action cid ac = OpenUrl start_url mempty where
 
 type FilledForm = Form
 
-type VK a = ReaderT Env (ErrorT String IO) a
+type VK a = ReaderT (Env LoginEnv) (ErrorT String IO) a
 
-runVK :: Env -> VK a -> IO (Either String a)
+runVK :: Env LoginEnv -> VK a -> IO (Either String a)
 runVK e vk = runErrorT (runReaderT vk e)
 
 liftVK :: IO (Either String a) -> VK a
@@ -114,8 +110,14 @@ when_trace = dbgVK Trace
 type Page = (Http Response, Body)
 
 -- | Browser action
+
+type Hist = [[String]]
+
+data ActionHist = AH Hist Action
+  deriving(Show)
+
 data Action = OpenUrl Uri Cookies | SendForm Form Cookies
-    deriving (Show)
+  deriving (Show)
 
 -- | Url assotiated with Action
 actionUri :: Action -> Uri
@@ -160,7 +162,7 @@ vk_post f c = let
 split_inputs :: [(String,String)]
              -- ^ User dictionary
              -> M.Map String String
-             -- ^ Form fields with default values (default is valid if non-zero)
+             -- ^ Fields with default values (default doesn't exist if zero string)
              -> (M.Map String (), M.Map String String, M.Map String String)
 split_inputs d m =
     let (b,g) = M.mapEitherWithKey (match_field d) m
@@ -171,14 +173,17 @@ split_inputs d m =
             | otherwise    = maybe (Left ())           (Right . Right) u
             where u = lookup k d
 
+inputs_to_fill :: Form -> [String]
+inputs_to_fill f = let (inps,_,_) = split_inputs [] (inputs f) in M.keys inps
+
 vk_fill_form :: Form -> VK FilledForm
 vk_fill_form f = ask >>= \e -> do
-    let (bad,good,user) = split_inputs (formdata e) (inputs f)
+    let (bad,good,user) = split_inputs ((formdata . sub) e) (inputs f)
     when (not $ M.null bad) (fail $ "Unmatched form parameters: " ++ (show bad))
     return f { inputs = good }
 
--- | Executes an action, returns Web-server's answer, adjusts cookies
--- Cookie management algorithm is very primitive: just merging
+-- | Execute an action, return Web-server's answer and adjusted cookies. Cookie
+-- management is very primitive: it's no more than merging old and new ones
 vk_move :: Action -> VK (Page, Cookies)
 vk_move (OpenUrl u c) = do
     (h,b) <- (vk_get u c)
@@ -192,36 +197,47 @@ uri_fragment :: Http Response -> Maybe AccessToken
 uri_fragment = get location >=> pure . get fragment >=> pure . fw (keyValues "&" "=") >=> \f -> do
     (\a b c -> (a,b,c)) <$> lookup "access_token" f <*> lookup "user_id" f <*> lookup "expires_in" f
 
--- | Suggests new action
-vk_analyze :: (Page,Cookies) -> VK (Either AccessToken Action)
-vk_analyze ((h,b),c)
-    | isJust a       = return $ Left (fromJust a)
-    | isJust l       = return $ Right $ OpenUrl (fromJust l) c
-    | (not . null) f = return $ Right $ SendForm (head f) c
-    | otherwise      = fail "HTML processing failure (new design of VK login dialog?)"
+-- | Suggest new action
+vk_analyze :: Hist -> (Page,Cookies) -> VK (Either AccessToken (Action,Hist))
+vk_analyze hist ((h,b),c)
+    | isJust a        = return $ Left (fromJust a)
+    | isJust l        = return $ Right (OpenUrl (fromJust l) c, hist)
+    | not (null fs) && not (is `elem` hist)
+                      = return $ Right (SendForm f c, is:hist)
+    | not (null fs) && (is `elem` hist)
+                      = fail $ "Invalid password/Form containig following inputs already seen: " ++ (show is)
+    | not gs          = fail $ "HTTP error: status " ++ (show s)
+    | otherwise       = fail $ "HTML processing failure (new design of VK login dialog?)"
     where
+        gs = s`elem` [OK,Created,Found,SeeOther,Accepted,Continue]
+        s = get status h
         l = get location h
-        f = parseTags >>> gatherForms $ b
+        fs = parseTags >>> gatherForms $ b
+        f = head fs
+        is = inputs_to_fill f
         a = uri_fragment h
 
 vk_dump_page :: Int -> Uri -> Page -> IO ()
-vk_dump_page n u (h,b) = 
+vk_dump_page n u (h,b) 
+  | (>0) . length . filter (isAlpha) $ b = 
     let name = printf "%02d-%s.html" n (showAuthority (get authority u))
     in bracket (openFile name WriteMode) (hClose) $ \f -> do
         hPutStrLn f b
         hPutStrLn stderr $ "dumped: name " ++ (name) ++ " size " ++ (show $ length b)
+  | otherwise = return ()
 
--- | Start login procedure, return AccessToken on success
-login :: Env -> IO (Either String AccessToken)
-login e =  runVK e $ loop 0 (vk_start_action (clientId e) (ac_rights e)) where 
-    loop n act = do
+-- | Execute login procedure, return (Right AccessToken) on success
+login :: Env LoginEnv -> IO (Either String AccessToken)
+login e@(Env (LoginEnv _ acr cid) _ _ _) = 
+  runVK e $ loop [0..] (vk_start_action cid acr) where 
+    loop (n:ns) (AH h act) = do
         when_trace $ printf "VK => %02d %s" n (show act)
         ans@(p,c) <- vk_move act
         when_debug $ vk_dump_page n (actionUri act) p
-        a <- vk_analyze ans
+        a <- vk_analyze h ans
         case a of
-            Right act' -> do
-                loop (n+1) act'
+            Right (act',h') -> do
+                loop ns (AH h' act')
             Left at -> do
                 return at
 
