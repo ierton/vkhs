@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Main where
@@ -16,7 +17,9 @@ import Text.JSON
 import Text.JSON.Types
 import Text.JSON.Generic
 import Web.VKHS
+import qualified Web.VKHS.API.Aeson as A
 import qualified Web.VKHS.API.JSON as J
+import qualified Data.Aeson as A
 
 data Options = Options
   { verb :: Verbosity
@@ -123,8 +126,8 @@ cmd (Options v (UserQ uo@(UO act qs))) = do
   let e = (envcall act) { verbose = v }
   print qs
   ea <- J.api e "users.search" [("q",qs),("fields","uid,first_name,last_name,photo,education")]
-  ur <- (checkRight >=> fromJS) ea
-  processUQ uo ur
+  ae <- checkRight ea
+  processUQ uo ae
 
 data Collection a = MC {
   response :: [a]
@@ -152,10 +155,11 @@ data UserRecord = UR
   , first_name :: String
   , last_name :: String
   , photo :: String
-  , university :: Maybe String
+  -- , university :: Maybe String
   } deriving(Show,Data,Typeable)
 
-processUQ :: UserOptions -> Collection UserRecord -> IO ()
-processUQ (UO _ _) (MC ur) = do
-  print ur
+processUQ :: UserOptions -> JSValue -> IO ()
+processUQ (UO _ _) j = do
+  print j
+  -- print $ (fromJSON j :: Result (Collection JSValue))
 
