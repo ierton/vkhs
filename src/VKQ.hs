@@ -155,11 +155,21 @@ data UserRecord = UR
   , first_name :: String
   , last_name :: String
   , photo :: String
-  -- , university :: Maybe String
+  , university :: Maybe Int
+  , university_name :: Maybe String
+  , faculty :: Maybe Int
+  , faculty_name :: Maybe String
+  , graduation :: Maybe Int
   } deriving(Show,Data,Typeable)
+
+parseUsers :: JSValue -> Maybe [JSValue]
+parseUsers (JSObject (JSONObject [("response",(JSArray a))])) = Just a
+parseUsers _ = Nothing
 
 processUQ :: UserOptions -> JSValue -> IO ()
 processUQ (UO _ _) j = do
-  print j
-  -- print $ (fromJSON j :: Result (Collection JSValue))
+  -- let (Just u) = parseUsers j
+  -- a <- fromJS (u !! 1)
+  -- print $ show (a :: UserRecord)
+  print $ show $ j
 
