@@ -52,5 +52,7 @@ library
                      transformers ==0.3.*,
                      fclabels >=1.1.4 && <1.1.6,
                      optparse-applicative >=0.4 && <0.6,
-                     aeson >= 0.6 && < 0.7
+                     aeson >= 0.6 && < 0.7,
+                     filepath,
+                     directory
 

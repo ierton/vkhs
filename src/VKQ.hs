@@ -7,9 +7,12 @@ import Control.Monad
 import Data.Label.Abstract
 import Data.Typeable
 import Data.Data
+import qualified Data.ByteString as BS
 import Network.Protocol.Uri.Query
 import Options.Applicative
+import System.Directory
 import System.Exit
+import System.FilePath
 import System.Environment
 import System.IO
 import Text.Printf
@@ -17,6 +20,7 @@ import Text.JSON
 import Text.JSON.Types
 import Text.JSON.Generic
 import Web.VKHS
+import Web.VKHS.Curl
 import qualified Web.VKHS.API.Aeson as A
 import qualified Web.VKHS.API.JSON as J
 import qualified Data.Aeson as A
@@ -48,6 +52,7 @@ data CallOptions = CO
 data MusicOptions = MO
   { accessToken_m :: String
   , list_music :: Bool
+  , records_id :: [String]
   } deriving(Show)
 
 data UserOptions = UO
@@ -78,6 +83,7 @@ opts m =
     & command "music" (info ( Music <$> (MO
       <$> access_token_flag
       <*> switch (long "list" & short 'l' & help "List music files")
+      <*> arguments str (metavar "RECORD_ID" & help "Download records")
       ))
       ( progDesc "List or download music files"))
     & command "user" (info ( UserQ <$> (UO
@@ -116,11 +122,25 @@ cmd (Options v (Call (CO act mn args))) = do
   ea <- api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit putStrLn
 
-cmd (Options v (Music mo@(MO act l))) = do
+cmd (Options v (Music mo@(MO act True _))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.get" []
   mc <- (checkRight >=> fromJS) ea
   processMC mo mc
+
+cmd (Options v (Music mo@(MO act False rid))) = do
+  let e = (envcall act) { verbose = v }
+  ea <- J.api e "audio.getById" [("audios",head rid)]
+  (MC mc) <- (checkRight >=> fromJS) ea
+  temp <- getTemporaryDirectory
+  forM_ mc $ \m -> do
+    let (_,ext) = splitExtension (url m)
+    (fp, h) <- openBinaryTempFile temp ("vkqmusic"++ext)
+    vk_curl_file e (url m) $ \ bs -> do
+      BS.hPut h bs
+    printf "%d_%d\n" (owner_id m) (aid m)
+    printf "%s\n" (title m)
+    printf "%s\n" fp
 
 cmd (Options v (UserQ uo@(UO act qs))) = do
   let e = (envcall act) { verbose = v }
@@ -143,12 +163,12 @@ data MusicRecord = MR
   } deriving (Show,Data,Typeable)
 
 processMC :: MusicOptions -> Collection MusicRecord -> IO ()
-processMC (MO _ True) (MC r) = do
+processMC (MO _ _ _) (MC r) = do
   forM_ r $ \m -> do
-    printf "%d|%s|%s|%s\n" (aid m) (artist m) (title m) (url m)
+    printf "%d_%d|%s|%s|%s\n" (owner_id m) (aid m) (artist m) (title m) (url m)
 
-processMC (MO _ False) (MC r) = do
-  print r
+-- processMC (MO _ rid False) (MC r) = do
+--   print r
 
 data UserRecord = UR
   { uid :: Int
