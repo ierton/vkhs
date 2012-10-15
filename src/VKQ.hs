@@ -7,6 +7,8 @@ import Control.Monad
 import Data.Label.Abstract
 import Data.Typeable
 import Data.Data
+import Data.List
+import Data.Maybe
 import qualified Data.ByteString as BS
 import Network.Protocol.Uri.Query
 import Options.Applicative
@@ -130,7 +132,7 @@ cmd (Options v (Music mo@(MO act True _))) = do
 
 cmd (Options v (Music mo@(MO act False rid))) = do
   let e = (envcall act) { verbose = v }
-  ea <- J.api e "audio.getById" [("audios",head rid)]
+  ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
   (MC mc) <- (checkRight >=> fromJS) ea
   temp <- getTemporaryDirectory
   forM_ mc $ \m -> do
@@ -192,4 +194,19 @@ processUQ (UO _ _) j = do
   -- a <- fromJS (u !! 1)
   -- print $ show (a :: UserRecord)
   print $ show $ j
+
+
+
+-- | Example: pformat '%' [('%',"%"), ('w',"world")] "hello %% %x %w"
+pformat :: Char -> [(Char,String)] -> String -> String
+pformat x d s = reverse $ scan [] s where
+  scan h (c:m:cs)
+    | c == x = scan ((reverse $ fromMaybe (c:m:[]) (lookup m d))++h) cs
+    | otherwise = scan (c:h) (m:cs)
+  scan h (c:[]) = c:h
+  scan h [] = h
+
+
+
+
 
