@@ -196,17 +196,3 @@ processUQ (UO _ _) j = do
   print $ show $ j
 
 
-
--- | Example: pformat '%' [('%',"%"), ('w',"world")] "hello %% %x %w"
-pformat :: Char -> [(Char,String)] -> String -> String
-pformat x d s = reverse $ scan [] s where
-  scan h (c:m:cs)
-    | c == x = scan ((reverse $ fromMaybe (c:m:[]) (lookup m d))++h) cs
-    | otherwise = scan (c:h) (m:cs)
-  scan h (c:[]) = c:h
-  scan h [] = h
-
-
-
-
-
