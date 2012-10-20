@@ -21,6 +21,7 @@ import Text.Printf
 import Text.JSON
 import Text.JSON.Types
 import Text.JSON.Generic
+import Text.PFormat
 import Web.VKHS
 import Web.VKHS.Curl
 import qualified Web.VKHS.API.Aeson as A
@@ -54,6 +55,7 @@ data CallOptions = CO
 data MusicOptions = MO
   { accessToken_m :: String
   , list_music :: Bool
+  , name_format :: String
   , records_id :: [String]
   } deriving(Show)
 
@@ -85,6 +87,7 @@ opts m =
     & command "music" (info ( Music <$> (MO
       <$> access_token_flag
       <*> switch (long "list" & short 'l' & help "List music files")
+      <*> strOption (metavar "FORMAT" & long "format" & short 'f' & value "%i:%a:%t:%u" & help "Format listing, supported tags: %i %o %a %t %d %u" )
       <*> arguments str (metavar "RECORD_ID" & help "Download records")
       ))
       ( progDesc "List or download music files"))
@@ -124,13 +127,15 @@ cmd (Options v (Call (CO act mn args))) = do
   ea <- api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit putStrLn
 
-cmd (Options v (Music mo@(MO act True _))) = do
+cmd (Options v (Music mo@(MO act True fmt _))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.get" []
-  mc <- (checkRight >=> fromJS) ea
-  processMC mo mc
+  MC mc <- (checkRight >=> fromJS) ea
+  forM_ mc $ \m -> do
+    printf "%s\n" (mr_format fmt m)
+    -- printf "%d_%d|%s|%s|%s\n" (owner_id m) (aid m) (artist m) (title m) (url m)
 
-cmd (Options v (Music mo@(MO act False rid))) = do
+cmd (Options v (Music mo@(MO act False fmt rid))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
   (MC mc) <- (checkRight >=> fromJS) ea
@@ -164,10 +169,21 @@ data MusicRecord = MR
   , url :: String
   } deriving (Show,Data,Typeable)
 
-processMC :: MusicOptions -> Collection MusicRecord -> IO ()
-processMC (MO _ _ _) (MC r) = do
-  forM_ r $ \m -> do
-    printf "%d_%d|%s|%s|%s\n" (owner_id m) (aid m) (artist m) (title m) (url m)
+
+mr_format :: String -> MusicRecord -> String
+mr_format = pformat '%'
+  [ ('i', show . aid)
+  , ('o', show . owner_id)
+  , ('a', artist)
+  , ('t', title)
+  , ('d', show . duration)
+  , ('u', url)
+  ]
+
+-- processMC :: MusicOptions -> Collection MusicRecord -> IO ()
+-- processMC (MO _ _ _) (MC r) = do
+--   forM_ r $ \m -> do
+--     printf "%d_%d|%s|%s|%s\n" (owner_id m) (aid m) (artist m) (title m) (url m)
 
 -- processMC (MO _ rid False) (MC r) = do
 --   print r
