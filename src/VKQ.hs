@@ -56,6 +56,8 @@ data MusicOptions = MO
   { accessToken_m :: String
   , list_music :: Bool
   , name_format :: String
+  , output_format :: String
+  , out_dir :: String
   , records_id :: [String]
   } deriving(Show)
 
@@ -87,7 +89,9 @@ opts m =
     & command "music" (info ( Music <$> (MO
       <$> access_token_flag
       <*> switch (long "list" & short 'l' & help "List music files")
-      <*> strOption (metavar "FORMAT" & long "format" & short 'f' & value "%i:%a:%t:%u" & help "Format listing, supported tags: %i %o %a %t %d %u" )
+      <*> strOption (metavar "FORMAT" & short 'f' & value "id %o_%i author %a title %t url %u" & help "Listing format, supported tags: %i %o %a %t %d %u" )
+      <*> strOption (metavar "FORMAT" & short 'F' & value "%a - %t" & help "FileName format, supported tags: %i %o %a %t %d %u" )
+      <*> strOption (metavar "DIR" & short 'o' & help "Output directory" & value "")
       <*> arguments str (metavar "RECORD_ID" & help "Download records")
       ))
       ( progDesc "List or download music files"))
@@ -127,24 +131,22 @@ cmd (Options v (Call (CO act mn args))) = do
   ea <- api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit putStrLn
 
-cmd (Options v (Music mo@(MO act True fmt _))) = do
+cmd (Options v (Music mo@(MO act True fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.get" []
   MC mc <- (checkRight >=> fromJS) ea
   forM_ mc $ \m -> do
     printf "%s\n" (mr_format fmt m)
-    -- printf "%d_%d|%s|%s|%s\n" (owner_id m) (aid m) (artist m) (title m) (url m)
 
-cmd (Options v (Music mo@(MO act False fmt rid))) = do
+cmd (Options v (Music mo@(MO act False _ ofmt odir rid))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
   (MC mc) <- (checkRight >=> fromJS) ea
-  temp <- getTemporaryDirectory
   forM_ mc $ \m -> do
-    let (_,ext) = splitExtension (url m)
-    (fp, h) <- openBinaryTempFile temp ("vkqmusic"++ext)
-    vk_curl_file e (url m) $ \ bs -> do
+    (fp, h) <- openFileFor odir ofmt m
+    r <- vk_curl_file e (url m) $ \ bs -> do
       BS.hPut h bs
+    checkRight r
     printf "%d_%d\n" (owner_id m) (aid m)
     printf "%s\n" (title m)
     printf "%s\n" fp
@@ -155,6 +157,22 @@ cmd (Options v (UserQ uo@(UO act qs))) = do
   ea <- J.api e "users.search" [("q",qs),("fields","uid,first_name,last_name,photo,education")]
   ae <- checkRight ea
   processUQ uo ae
+
+type NameFormat = String
+
+openFileFor :: FilePath -> NameFormat -> MusicRecord -> IO (FilePath, Handle)
+openFileFor [] _ m = do
+  let (_,ext) = splitExtension (url m)
+  temp <- getTemporaryDirectory
+  (fp,h) <- openBinaryTempFile temp ("vkqmusic"++ext)
+  return (fp,h)
+openFileFor dir fmt m = do
+  let (_,ext) = splitExtension (url m)
+      name = mr_format fmt m
+      name' = replaceExtension name ext
+      fp =  (dir </> name') 
+  h <- openBinaryFile fp WriteMode
+  return (fp,h)
 
 data Collection a = MC {
   response :: [a]
