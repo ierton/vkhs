@@ -54,5 +54,6 @@ library
                      optparse-applicative >=0.4 && <0.6,
                      aeson >= 0.6 && < 0.7,
                      filepath,
-                     directory
+                     directory,
+                     regexpr
 

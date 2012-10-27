@@ -21,7 +21,8 @@ import Text.Printf
 import Text.JSON
 import Text.JSON.Types
 import Text.JSON.Generic
-import Text.PFormat
+import Text.PFormat (pformat)
+import Text.Namefilter (namefilter)
 import Web.VKHS
 import Web.VKHS.Curl
 import qualified Web.VKHS.API.Aeson as A
@@ -131,6 +132,7 @@ cmd (Options v (Call (CO act mn args))) = do
   ea <- api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit putStrLn
 
+-- list audio files summary
 cmd (Options v (Music mo@(MO act True fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.get" []
@@ -143,7 +145,7 @@ cmd (Options v (Music mo@(MO act False _ ofmt odir rid))) = do
   ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
   (MC mc) <- (checkRight >=> fromJS) ea
   forM_ mc $ \m -> do
-    (fp, h) <- openFileFor odir ofmt m
+    (fp, h) <- openFileMR odir ofmt m
     r <- vk_curl_file e (url m) $ \ bs -> do
       BS.hPut h bs
     checkRight r
@@ -160,17 +162,17 @@ cmd (Options v (UserQ uo@(UO act qs))) = do
 
 type NameFormat = String
 
-openFileFor :: FilePath -> NameFormat -> MusicRecord -> IO (FilePath, Handle)
-openFileFor [] _ m = do
+openFileMR :: FilePath -> NameFormat -> MusicRecord -> IO (FilePath, Handle)
+openFileMR [] _ m = do
   let (_,ext) = splitExtension (url m)
   temp <- getTemporaryDirectory
   (fp,h) <- openBinaryTempFile temp ("vkqmusic"++ext)
   return (fp,h)
-openFileFor dir fmt m = do
+openFileMR dir fmt m = do
   let (_,ext) = splitExtension (url m)
-      name = mr_format fmt m
-      name' = replaceExtension name ext
-      fp =  (dir </> name') 
+  let name = mr_format fmt m
+  let name' = replaceExtension name ext
+  let fp =  (dir </> name') 
   h <- openBinaryFile fp WriteMode
   return (fp,h)
 
@@ -189,14 +191,14 @@ data MusicRecord = MR
 
 
 mr_format :: String -> MusicRecord -> String
-mr_format = pformat '%'
+mr_format s mr = pformat '%'
   [ ('i', show . aid)
   , ('o', show . owner_id)
-  , ('a', artist)
-  , ('t', title)
+  , ('a', namefilter . artist)
+  , ('t', namefilter . title)
   , ('d', show . duration)
   , ('u', url)
-  ]
+  ] s mr
 
 -- processMC :: MusicOptions -> Collection MusicRecord -> IO ()
 -- processMC (MO _ _ _) (MC r) = do
