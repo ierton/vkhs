@@ -56,6 +56,7 @@ data CallOptions = CO
 data MusicOptions = MO
   { accessToken_m :: String
   , list_music :: Bool
+  , search_string :: String
   , name_format :: String
   , output_format :: String
   , out_dir :: String
@@ -69,11 +70,10 @@ data UserOptions = UO
 
 loginOptions :: Parser CmdOptions
 loginOptions = Login <$> (LoginOptions
-  <$> argument str (metavar "APPID" & help "Application identifier (provided to you by vk.com)")
+  <$> strOption (metavar "APPID" & short 'a' & value "3128877" & help "Application ID, defaults to VKHS" )
   <*> argument str (metavar "USER" & help "User name or email")
   <*> argument str (metavar "PASS" & help "User password"))
 
--- opts :: String -> Parser Options
 opts m =
   let access_token_flag = strOption (short 'a' & m & metavar "ACCESS_TOKEN" &
         help "Access token. Honores VKQ_ACCESS_TOKEN environment variable")
@@ -90,8 +90,21 @@ opts m =
     & command "music" (info ( Music <$> (MO
       <$> access_token_flag
       <*> switch (long "list" & short 'l' & help "List music files")
-      <*> strOption (metavar "FORMAT" & short 'f' & value "id %o_%i author %a title %t url %u" & help "Listing format, supported tags: %i %o %a %t %d %u" )
-      <*> strOption (metavar "FORMAT" & short 'F' & value "%a - %t" & help "FileName format, supported tags: %i %o %a %t %d %u" )
+      <*> strOption
+        ( metavar "STR"
+        & long "query" & short 'q' & value [] & help "Query string")
+      <*> strOption
+        ( metavar "FORMAT"
+        & short 'f'
+        & value "id %o_%i author %a title %t url %u"
+        & help "Listing format, supported tags: %i %o %a %t %d %u"
+        )
+      <*> strOption
+        ( metavar "FORMAT"
+        & short 'F'
+        & value "%a - %t"
+        & help "FileName format, supported tags: %i %o %a %t %d %u"
+        )
       <*> strOption (metavar "DIR" & short 'o' & help "Output directory" & value "")
       <*> arguments str (metavar "RECORD_ID" & help "Download records")
       ))
@@ -132,15 +145,27 @@ cmd (Options v (Call (CO act mn args))) = do
   ea <- api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit putStrLn
 
--- list audio files summary
-cmd (Options v (Music mo@(MO act True fmt _ _ _))) = do
+-- query music files
+cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
+  let e = (envcall act) { verbose = v }
+  ea <- J.api e "audio.search" [("q",q)]
+  MC mc <- (checkRight >=> fromJS) ea
+  forM_ mc $ \m -> do
+    printf "%s\n" (mr_format fmt m)
+
+-- list available audio files 
+cmd (Options v (Music mo@(MO act True [] fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.get" []
   MC mc <- (checkRight >=> fromJS) ea
   forM_ mc $ \m -> do
     printf "%s\n" (mr_format fmt m)
 
-cmd (Options v (Music mo@(MO act False _ ofmt odir rid))) = do
+cmd (Options v (Music mo@(MO act False [] _ ofmt odir []))) = do
+  errexit "Music record ID is not specified (see --help)"
+
+-- download audio files specified
+cmd (Options v (Music mo@(MO act False [] _ ofmt odir rid))) = do
   let e = (envcall act) { verbose = v }
   ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
   (MC mc) <- (checkRight >=> fromJS) ea
