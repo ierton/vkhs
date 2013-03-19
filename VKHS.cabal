@@ -55,5 +55,7 @@ library
                      aeson >= 0.6 && < 0.7,
                      filepath,
                      directory,
-                     regexpr
+                     regexpr,
+                     pretty-show
+  
 

@@ -8,7 +8,8 @@ import Control.Monad.Writer
 import Control.Monad.Error
 
 import Data.Aeson as J
-import Data.ByteString.Lazy.Char8 as BS
+import Data.ByteString.Lazy as BS
+import qualified Data.String.UTF8 as U
 
 import Web.VKHS.Types
 import qualified Web.VKHS.API as Base
@@ -18,5 +19,7 @@ api e mn mp = runErrorT $ do
   e <- ErrorT (Base.api e mn mp)
   let check (Just x) = return x
       check (Nothing) = fail $ "AESON: error parsing JSON: " ++ e
-  check $ J.decode (BS.pack e)
+
+  let decodeU8 s = J.decode $ BS.pack s
+  check $ decodeU8 (U.toRep $ U.fromString e)
 

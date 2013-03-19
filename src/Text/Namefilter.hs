@@ -14,4 +14,4 @@ no_html = gsubRegexPR re "" where
   re = concat $ intersperse "|" [ "&[a-z]+;" , "&#[0-9]+;" ]
 
 namefilter :: String -> String
-namefilter s = trim_space . one_space . normal_letters . no_html . html_amp $ s where
+namefilter = trim_space . one_space . normal_letters . no_html . html_amp

@@ -23,10 +23,12 @@ import Text.JSON.Types
 import Text.JSON.Generic
 import Text.PFormat (pformat)
 import Text.Namefilter (namefilter)
+import Text.Show.Pretty as PP
 import Web.VKHS
 import Web.VKHS.Curl
 import qualified Web.VKHS.API.Aeson as A
 import qualified Web.VKHS.API.JSON as J
+import qualified Web.VKHS.API as B
 import qualified Data.Aeson as A
 
 data Options = Options
@@ -142,8 +144,8 @@ cmd (Options v (Login (LoginOptions a u p))) = do
 
 cmd (Options v (Call (CO act mn args))) = do
   let e = (envcall act) { verbose = v }
-  ea <- api e mn (fw (keyValues "," "=") args)
-  ifeither ea errexit putStrLn
+  ea <- A.api e mn (fw (keyValues "," "=") args)
+  ifeither ea errexit (putStrLn . show)
 
 -- query music files
 cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
