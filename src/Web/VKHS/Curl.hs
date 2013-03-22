@@ -3,11 +3,14 @@
 module Web.VKHS.Curl
   ( vk_curl
   , vk_curl_file
+  , vk_curl_payload
+  , pack
+  , unpack
   ) where
 
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
-import qualified Data.ByteString.UTF8 as U
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BS (c2w, w2c)
 
 import Control.Applicative
 import Control.Exception (catch,bracket)
@@ -22,9 +25,12 @@ import System.IO
 
 import Web.VKHS.Types
 
--- | Generic request sender. Uses delay to prevent application from being
--- blocked for flooding
-vk_curl :: Env a -> Writer [CURLoption] () -> IO (Either String String)
+
+pack = BS.pack . map BS.c2w
+unpack = map BS.w2c . BS.unpack
+
+-- | Generic request sender. Returns whole HTTP answer as a ByteString
+vk_curl :: Env a -> Writer [CURLoption] () -> IO (Either String BS.ByteString)
 vk_curl e w = do
     let askE x = return (x e)
     v <- askE verbose
@@ -41,16 +47,15 @@ vk_curl e w = do
                 [ CURLOPT_HEADER         True
                 , CURLOPT_WRITEFUNCTION (Just $ memwrite)
                 , CURLOPT_SSL_VERIFYPEER False
-                , CURLOPT_USERAGENT $ BS.pack a
+                , CURLOPT_USERAGENT $ BS.pack $ map BS.c2w a
                 , CURLOPT_VERBOSE (v == Debug )
                 ] ++ (execWriter w);
             curl_easy_perform curl;
             threadDelay (1000 * d); -- convert ms to us
             b <- readIORef buff ;
-            return (Right $ U.toString b) ;
+            return (Right b) ;
         } `catch`
             (\(e::CURLcode) -> return $ Left ("CURL error: " ++ (show e)))
-
 
 scanPattern pat s =
   let (_,o,x,n) = BS.foldl' check (False, BS.empty, BS.empty, BS.empty) s
@@ -67,7 +72,7 @@ cutheader buf new =
   let
   buf' = BS.append buf new
   overfill = BS.length buf' >= 1024
-  (_,p,t) = scanPattern (BS.pack "\r\n\r\n") buf'
+  (_,p,t) = scanPattern (BS.pack $ map BS.c2w "\r\n\r\n") buf'
   in case (overfill, BS.null t) of
     (True, True) -> Nothing
     (False, True) -> Just (buf', t)
@@ -117,9 +122,9 @@ vk_curl_file e url cb = do
                 [ CURLOPT_HEADER         True
                 , CURLOPT_WRITEFUNCTION (Just $ filewrite)
                 , CURLOPT_SSL_VERIFYPEER False
-                , CURLOPT_USERAGENT $ BS.pack a
+                , CURLOPT_USERAGENT $ BS.pack $ map BS.c2w a
                 , CURLOPT_VERBOSE (v == Debug)
-                , CURLOPT_URL (BS.pack url)
+                , CURLOPT_URL (BS.pack $ map BS.c2w url)
                 ]; 
 
             curl_easy_perform curl;
@@ -131,4 +136,41 @@ vk_curl_file e url cb = do
         } `catch`
             (\(e::CURLcode) -> return $ Left ("CURL error: " ++ (show e)))
 
+
+-- | Return HTTP payload, ignore headers
+vk_curl_payload :: Env a -> Writer [CURLoption] () -> IO (Either String BS.ByteString)
+vk_curl_payload e w = do
+    let askE x = return (x e)
+    v <- askE verbose
+    a <- askE useragent
+    d <- askE delay_ms
+    do
+        sr <- newIORef (BS.empty, Pending BS.empty)
+
+        bracket (curl_easy_init) (curl_easy_cleanup) $ \curl -> do {
+            let 
+            writer bs = do
+              atomicModifyIORef sr (\(buff,s) -> let s' = process s bs ; paired x =(x,x) in 
+                case s' of
+                  FailNoHeader -> paired (buff,s')
+                  Pending b -> paired (buff,s')
+                  Working t -> paired (BS.append buff t,s'))
+              return CURL_WRITEFUNC_OK
+
+            in
+              curl_easy_setopt curl $
+                [ CURLOPT_HEADER         True
+                , CURLOPT_WRITEFUNCTION (Just $ writer)
+                , CURLOPT_SSL_VERIFYPEER False
+                , CURLOPT_USERAGENT $ BS.pack $ map BS.c2w a
+                , CURLOPT_VERBOSE (v == Debug)
+                ] ++ (execWriter w); 
+            curl_easy_perform curl;
+            threadDelay (1000 * d); -- convert ms to us
+            (buff,s) <- readIORef sr;
+            case s of
+              Working _ -> return $ Right buff
+              _         -> return $ Left "HTTP header detection failure"
+        } `catch`
+            (\(e::CURLcode) -> return $ Left ("CURL error: " ++ (show e)))
 

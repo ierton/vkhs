@@ -17,7 +17,7 @@ import Control.Monad.Reader
 import Control.Monad.Writer
 import qualified Control.Monad.State as S
 
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
 import Data.List
 import Data.String
 import Data.Char
@@ -40,7 +40,7 @@ import Text.Printf
 import System.IO
 
 import Web.VKHS.Types
-import Web.VKHS.Curl
+import Web.VKHS.Curl as VKHS
 
 -- Test applications: 
 --
@@ -129,8 +129,8 @@ liftEIO act = (liftIO act) >>= either fail return
 -- | Send a get-request to the server
 vk_get :: Uri -> Cookies -> VK Page
 vk_get u c = let
-    c' = (BS.pack $ bw cookie $ map toShort $ bw gather c )
-    u' = (BS.pack $ showUri u)
+    c' = (VKHS.pack $ bw cookie $ map toShort $ bw gather c )
+    u' = (VKHS.pack $ showUri u)
     in do
         e <- ask
         s <- liftEIO $ vk_curl e $ do
@@ -138,14 +138,14 @@ vk_get u c = let
                 tell [CURLOPT_COOKIE c']
             when ((not . BS.null) u') $ do
                 tell [CURLOPT_URL u']
-        liftVK (return $ parseResponse s)
+        liftVK (return $ parseResponse $ VKHS.unpack s)
 
 -- | Send a form to the server.
 vk_post :: FilledForm -> Cookies -> VK Page
 vk_post f c = let
-    c' = (BS.pack $ bw cookie $ map toShort $ bw gather c )
-    p' = (BS.pack $ bw params $ M.toList $ inputs f)
-    u' = (BS.pack $ action f)
+    c' = (VKHS.pack $ bw cookie $ map toShort $ bw gather c )
+    p' = (VKHS.pack $ bw params $ M.toList $ inputs f)
+    u' = (VKHS.pack $ action f)
     in do
         e <- ask
         s <- liftEIO $ vk_curl e $ do
@@ -155,7 +155,7 @@ vk_post f c = let
                 tell [CURLOPT_URL u']
             tell [CURLOPT_POST True]
             tell [CURLOPT_COPYPOSTFIELDS p']
-        liftVK (return $ parseResponse s)
+        liftVK (return $ parseResponse $ VKHS.unpack s)
     
 -- | Splits parameters into 3 categories:
 -- 1)without a value, 2)filled from user dictionary, 3)with default values

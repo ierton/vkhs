@@ -10,7 +10,7 @@ import Control.Monad.Error
 
 import Data.Label
 import qualified Data.ByteString.UTF8 as U
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
 
 import Network.Curlhs.Core
 
@@ -36,13 +36,9 @@ api :: Env CallEnv
     -- ^ API method name
     -> [(String, String)]
     -- ^ API method parameters (name-value pairs)
-    -> IO (Either String String)
+    -> IO (Either String BS.ByteString)
 api e mn mp =
   let uri = showUri $ (\f -> f $ toUri $ printf "https://api.vk.com/method/%s" mn) $
               set query $ bw params (("access_token",(access_token . sub) e):mp)
-  in runErrorT $ do
-    r <- ErrorT $ do
-      vk_curl e (tell [CURLOPT_URL $ U.fromString uri])
-    (_,b) <- ErrorT $ return $ parseResponse r
-    return b
+  in vk_curl_payload e (tell [CURLOPT_URL $ U.fromString uri])
 

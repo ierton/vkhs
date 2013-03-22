@@ -27,7 +27,7 @@ import Text.Show.Pretty as PP
 import Web.VKHS
 import Web.VKHS.Curl
 import qualified Web.VKHS.API.Aeson as A
-import qualified Web.VKHS.API.JSON as J
+-- import qualified Web.VKHS.API.JSON as J
 import qualified Web.VKHS.API as B
 import qualified Data.Aeson as A
 
@@ -150,18 +150,20 @@ cmd (Options v (Call (CO act mn args))) = do
 -- query music files
 cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
-  ea <- J.api e "audio.search" [("q",q)]
-  MC mc <- (checkRight >=> fromJS) ea
-  forM_ mc $ \m -> do
-    printf "%s\n" (mr_format fmt m)
+  ea <- A.api e "audio.search" [("q",q)]
+  putStrLn $ show ea
+  -- MC mc <- (checkRight >=> fromJS) ea
+  -- forM_ mc $ \m -> do
+  --   printf "%s\n" (mr_format fmt m)
 
 -- list available audio files 
 cmd (Options v (Music mo@(MO act True [] fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
-  ea <- J.api e "audio.get" []
-  MC mc <- (checkRight >=> fromJS) ea
-  forM_ mc $ \m -> do
-    printf "%s\n" (mr_format fmt m)
+  ea <- A.api e "audio.get" []
+  putStrLn $ show ea
+  -- MC mc <- (checkRight >=> fromJS) ea
+  -- forM_ mc $ \m -> do
+  --   printf "%s\n" (mr_format fmt m)
 
 cmd (Options v (Music mo@(MO act False [] _ ofmt odir []))) = do
   errexit "Music record ID is not specified (see --help)"
@@ -169,23 +171,25 @@ cmd (Options v (Music mo@(MO act False [] _ ofmt odir []))) = do
 -- download audio files specified
 cmd (Options v (Music mo@(MO act False [] _ ofmt odir rid))) = do
   let e = (envcall act) { verbose = v }
-  ea <- J.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
-  (MC mc) <- (checkRight >=> fromJS) ea
-  forM_ mc $ \m -> do
-    (fp, h) <- openFileMR odir ofmt m
-    r <- vk_curl_file e (url m) $ \ bs -> do
-      BS.hPut h bs
-    checkRight r
-    printf "%d_%d\n" (owner_id m) (aid m)
-    printf "%s\n" (title m)
-    printf "%s\n" fp
+  ea <- A.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
+  putStrLn $ show ea
+  -- (MC mc) <- (checkRight >=> fromJS) ea
+  -- forM_ mc $ \m -> do
+  --   (fp, h) <- openFileMR odir ofmt m
+  --   r <- vk_curl_file e (url m) $ \ bs -> do
+  --     BS.hPut h bs
+  --   checkRight r
+  --   printf "%d_%d\n" (owner_id m) (aid m)
+  --   printf "%s\n" (title m)
+  --   printf "%s\n" fp
 
 cmd (Options v (UserQ uo@(UO act qs))) = do
   let e = (envcall act) { verbose = v }
   print qs
-  ea <- J.api e "users.search" [("q",qs),("fields","uid,first_name,last_name,photo,education")]
-  ae <- checkRight ea
-  processUQ uo ae
+  ea <- A.api e "users.search" [("q",qs),("fields","uid,first_name,last_name,photo,education")]
+  putStrLn $ show ea
+  -- ae <- checkRight ea
+  -- processUQ uo ae
 
 type NameFormat = String
 
