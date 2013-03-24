@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -9,6 +12,7 @@ import Data.Typeable
 import Data.Data
 import Data.List
 import Data.Maybe
+import Data.Vector as V (toList)
 import qualified Data.ByteString as BS
 import Network.Protocol.Uri.Query
 import Options.Applicative
@@ -20,7 +24,7 @@ import System.IO
 import Text.Printf
 import Text.JSON
 import Text.JSON.Types
-import Text.JSON.Generic
+-- import Text.JSON.Generic
 import Text.PFormat (pformat)
 import Text.Namefilter (namefilter)
 import Text.Show.Pretty as PP
@@ -30,6 +34,9 @@ import qualified Web.VKHS.API.Aeson as A
 -- import qualified Web.VKHS.API.JSON as J
 import qualified Web.VKHS.API as B
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
+import Data.Aeson (FromJSON, (.:), (.:?))
+import Data.Aeson.Generic as AG
 
 data Options = Options
   { verb :: Verbosity
@@ -118,6 +125,48 @@ opts m =
       ( progDesc "Extract various user information"))
     )
 
+data Response a = Response a
+  deriving(Show)
+
+-- instance (FromJSON a) => FromJSON (Response a) where
+--   parseJSON (A.Object v) = Response <$> (v .: "response")
+
+instance (Data a) => FromJSON (Response [a]) where
+  parseJSON (A.Object v) = do
+    a <- v .: "response"
+    ls <- A.withArray "response" (\v -> do
+      forM (V.toList v) $ \o -> do
+        case AG.fromJSON o of
+          A.Success a -> return a
+          A.Error s -> fail $ "FromJSON fails :" ++ s
+      ) a
+    return $ Response ls
+
+  
+data MusicRecord = MR
+  { aid :: Int
+  , owner_id :: Int
+  , artist :: String
+  , title :: String
+  , duration :: Int
+  , url :: String
+  } deriving (Show, Data, Typeable)
+
+
+type MusicList = Response [MusicRecord]
+
+
+mr_format :: String -> MusicRecord -> String
+mr_format s mr = pformat '%'
+  [ ('i', show . aid)
+  , ('o', show . owner_id)
+  , ('a', namefilter . artist)
+  , ('t', namefilter . title)
+  , ('d', show . duration)
+  , ('u', url)
+  ] s mr
+
+
 ifeither e fl fr = either fl fr e
 
 errexit e = hPutStrLn stderr e >> exitFailure
@@ -125,10 +174,10 @@ errexit e = hPutStrLn stderr e >> exitFailure
 checkRight (Left e) = hPutStrLn stderr e >> exitFailure
 checkRight (Right a) = return a
 
-fromJS :: (Data a) => JSValue -> IO a
-fromJS jv = checkR . fromJSON $ jv where
-  checkR (Ok a) = return a
-  checkR (Error s) = checkRight (Left (s ++ " JSValue: " ++ (show jv)))
+-- fromJS :: (Data a) => JSValue -> IO a
+-- fromJS jv = checkR . fromJSON $ jv where
+--   checkR (Ok a) = return a
+--   checkR (Error s) = checkRight (Left (s ++ " JSValue: " ++ (show jv)))
 
 main :: IO ()
 main = do
@@ -159,8 +208,8 @@ cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
 -- list available audio files 
 cmd (Options v (Music mo@(MO act True [] fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
-  ea <- A.api e "audio.get" []
-  putStrLn $ show ea
+  (Right (Response (r :: [MusicRecord]))) <- A.api' e "audio.get" []
+  putStrLn $ show r
   -- MC mc <- (checkRight >=> fromJS) ea
   -- forM_ mc $ \m -> do
   --   printf "%s\n" (mr_format fmt m)
@@ -207,29 +256,9 @@ openFileMR dir fmt m = do
   h <- openBinaryFile fp WriteMode
   return (fp,h)
 
-data Collection a = MC {
-  response :: [a]
-  } deriving (Show,Data,Typeable)
-
-data MusicRecord = MR
-  { aid :: Int
-  , owner_id :: Int
-  , artist :: String
-  , title :: String
-  , duration :: Int
-  , url :: String
-  } deriving (Show,Data,Typeable)
-
-
-mr_format :: String -> MusicRecord -> String
-mr_format s mr = pformat '%'
-  [ ('i', show . aid)
-  , ('o', show . owner_id)
-  , ('a', namefilter . artist)
-  , ('t', namefilter . title)
-  , ('d', show . duration)
-  , ('u', url)
-  ] s mr
+-- data Collection a = MC {
+--   response :: [a]
+--   } deriving (Show,Data,Typeable)
 
 -- processMC :: MusicOptions -> Collection MusicRecord -> IO ()
 -- processMC (MO _ _ _) (MC r) = do
