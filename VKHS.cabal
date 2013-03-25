@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.2.1
+version:             0.3.0
 synopsis:            Provides access to Vkontakte social network via public API
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -30,6 +30,7 @@ library
   exposed-modules:   Web.VKHS
                      Web.VKHS.API
                      Web.VKHS.API.Aeson
+                     Web.VKHS.API.Types
                      Web.VKHS.Curl
                      Web.VKHS.Login
                      Web.VKHS.Types

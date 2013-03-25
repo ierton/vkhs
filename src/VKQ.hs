@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 import Control.Monad
+import Control.Monad.Error
+import Data.Aeson as A
 import Data.Label.Abstract
 import Data.Typeable
 import Data.Data
 import Data.List
 import Data.Maybe
-import Data.Vector as V (toList)
 import qualified Data.ByteString as BS
 import Network.Protocol.Uri.Query
 import Options.Applicative
@@ -22,21 +22,12 @@ import System.FilePath
 import System.Environment
 import System.IO
 import Text.Printf
-import Text.JSON
-import Text.JSON.Types
--- import Text.JSON.Generic
 import Text.PFormat (pformat)
 import Text.Namefilter (namefilter)
 import Text.Show.Pretty as PP
 import Web.VKHS
 import Web.VKHS.Curl
-import qualified Web.VKHS.API.Aeson as A
--- import qualified Web.VKHS.API.JSON as J
-import qualified Web.VKHS.API as B
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import Data.Aeson (FromJSON, (.:), (.:?))
-import Data.Aeson.Generic as AG
+import Web.VKHS.API.Aeson as A
 
 data Options = Options
   { verb :: Verbosity
@@ -105,7 +96,7 @@ opts m =
       <*> strOption
         ( metavar "FORMAT"
         & short 'f'
-        & value "id %o_%i author %a title %t url %u"
+        & value "id %o_%i title %t url %u"
         & help "Listing format, supported tags: %i %o %a %t %d %u"
         )
       <*> strOption
@@ -125,36 +116,12 @@ opts m =
       ( progDesc "Extract various user information"))
     )
 
-data Response a = Response a
-  deriving(Show)
-
--- instance (FromJSON a) => FromJSON (Response a) where
---   parseJSON (A.Object v) = Response <$> (v .: "response")
-
-instance (Data a) => FromJSON (Response [a]) where
-  parseJSON (A.Object v) = do
-    a <- v .: "response"
-    ls <- A.withArray "response" (\v -> do
-      forM (V.toList v) $ \o -> do
-        case AG.fromJSON o of
-          A.Success a -> return a
-          A.Error s -> fail $ "FromJSON fails :" ++ s
-      ) a
-    return $ Response ls
-
-  
-data MusicRecord = MR
-  { aid :: Int
-  , owner_id :: Int
-  , artist :: String
-  , title :: String
-  , duration :: Int
-  , url :: String
-  } deriving (Show, Data, Typeable)
-
-
-type MusicList = Response [MusicRecord]
-
+api_ :: (A.FromJSON a) => Env CallEnv -> String -> [(String,String)] -> IO a
+api_ a b c = do
+  r <- A.api' a b c
+  case r of
+    Right x -> return x
+    Left e -> hPutStrLn stderr e >> exitFailure
 
 mr_format :: String -> MusicRecord -> String
 mr_format s mr = pformat '%'
@@ -166,7 +133,6 @@ mr_format s mr = pformat '%'
   , ('u', url)
   ] s mr
 
-
 ifeither e fl fr = either fl fr e
 
 errexit e = hPutStrLn stderr e >> exitFailure
@@ -174,63 +140,55 @@ errexit e = hPutStrLn stderr e >> exitFailure
 checkRight (Left e) = hPutStrLn stderr e >> exitFailure
 checkRight (Right a) = return a
 
--- fromJS :: (Data a) => JSValue -> IO a
--- fromJS jv = checkR . fromJSON $ jv where
---   checkR (Ok a) = return a
---   checkR (Error s) = checkRight (Left (s ++ " JSValue: " ++ (show jv)))
-
 main :: IO ()
 main = do
   m <- maybe (idm) (value) <$> lookupEnv "VKQ_ACCESS_TOKEN"
   execParser (info (opts m) idm) >>= cmd
 
 cmd :: Options -> IO ()
+
+-- Login
 cmd (Options v (Login (LoginOptions a u p))) = do
   let e = (env a u p allAccess) { verbose = v }
   ea <- login e
   ifeither ea errexit $ \(at,uid,expin) -> do
     printf "%s %s %s\n" at uid expin
 
+-- Call user-specified API
 cmd (Options v (Call (CO act mn args))) = do
   let e = (envcall act) { verbose = v }
   ea <- A.api e mn (fw (keyValues "," "=") args)
   ifeither ea errexit (putStrLn . show)
 
--- query music files
+-- Query audio files
 cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
-  ea <- A.api e "audio.search" [("q",q)]
-  putStrLn $ show ea
-  -- MC mc <- (checkRight >=> fromJS) ea
-  -- forM_ mc $ \m -> do
-  --   printf "%s\n" (mr_format fmt m)
+  Response (SL len ms) <- api_ e "audio.search" [("q",q)]
+  forM_ ms $ \m -> do
+    printf "%s\n" (mr_format fmt m)
+  printf "total %d\n" len
 
--- list available audio files 
+-- List audio files 
 cmd (Options v (Music mo@(MO act True [] fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
-  (Right (Response (r :: [MusicRecord]))) <- A.api' e "audio.get" []
-  putStrLn $ show r
-  -- MC mc <- (checkRight >=> fromJS) ea
-  -- forM_ mc $ \m -> do
-  --   printf "%s\n" (mr_format fmt m)
-
+  (Response ms) <- api_ e "audio.get" []
+  forM_ ms $ \m -> do
+    printf "%s\n" (mr_format fmt m)
 cmd (Options v (Music mo@(MO act False [] _ ofmt odir []))) = do
   errexit "Music record ID is not specified (see --help)"
 
--- download audio files specified
+-- Download audio files
 cmd (Options v (Music mo@(MO act False [] _ ofmt odir rid))) = do
   let e = (envcall act) { verbose = v }
-  ea <- A.api e "audio.getById" [("audios", concat $ intersperse "," rid)]
-  putStrLn $ show ea
-  -- (MC mc) <- (checkRight >=> fromJS) ea
-  -- forM_ mc $ \m -> do
-  --   (fp, h) <- openFileMR odir ofmt m
-  --   r <- vk_curl_file e (url m) $ \ bs -> do
-  --     BS.hPut h bs
-  --   checkRight r
-  --   printf "%d_%d\n" (owner_id m) (aid m)
-  --   printf "%s\n" (title m)
-  --   printf "%s\n" fp
+  Response ms <- api_ e "audio.getById" [("audios", concat $ intersperse "," rid)]
+  forM_ ms $ \m -> do
+    (fp, h) <- openFileMR odir ofmt m
+    r <- vk_curl_file e (url m) $ \ bs -> do
+      BS.hPut h bs
+    checkRight r
+    printf "%d_%d\n" (owner_id m) (aid m)
+    printf "%s\n" (title m)
+    printf "%s\n" fp
 
 cmd (Options v (UserQ uo@(UO act qs))) = do
   let e = (envcall act) { verbose = v }
@@ -268,27 +226,15 @@ openFileMR dir fmt m = do
 -- processMC (MO _ rid False) (MC r) = do
 --   print r
 
-data UserRecord = UR
-  { uid :: Int
-  , first_name :: String
-  , last_name :: String
-  , photo :: String
-  , university :: Maybe Int
-  , university_name :: Maybe String
-  , faculty :: Maybe Int
-  , faculty_name :: Maybe String
-  , graduation :: Maybe Int
-  } deriving(Show,Data,Typeable)
+-- parseUsers :: JSValue -> Maybe [JSValue]
+-- parseUsers (JSObject (JSONObject [("response",(JSArray a))])) = Just a
+-- parseUsers _ = Nothing
 
-parseUsers :: JSValue -> Maybe [JSValue]
-parseUsers (JSObject (JSONObject [("response",(JSArray a))])) = Just a
-parseUsers _ = Nothing
-
-processUQ :: UserOptions -> JSValue -> IO ()
-processUQ (UO _ _) j = do
+-- processUQ :: UserOptions -> JSValue -> IO ()
+-- processUQ (UO _ _) j = do
   -- let (Just u) = parseUsers j
   -- a <- fromJS (u !! 1)
   -- print $ show (a :: UserRecord)
-  print $ show $ j
+  -- print $ show $ j
 
 
