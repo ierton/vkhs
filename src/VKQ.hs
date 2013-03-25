@@ -14,6 +14,7 @@ import Data.Data
 import Data.List
 import Data.Maybe
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as U
 import Network.Protocol.Uri.Query
 import Options.Applicative
 import System.Directory
@@ -28,6 +29,7 @@ import Text.Show.Pretty as PP
 import Web.VKHS
 import Web.VKHS.Curl
 import Web.VKHS.API.Aeson as A
+import Web.VKHS.API as STR
 
 data Options = Options
   { verb :: Verbosity
@@ -39,6 +41,7 @@ data CmdOptions
   | Call CallOptions
   | Music MusicOptions
   | UserQ UserOptions
+  | WallQ WallOptions
   deriving(Show)
 
 data LoginOptions = LoginOptions
@@ -49,6 +52,7 @@ data LoginOptions = LoginOptions
 
 data CallOptions = CO
   { accessToken :: String
+  , parse :: Bool
   , method :: String
   , args :: String
   } deriving(Show)
@@ -68,6 +72,11 @@ data UserOptions = UO
   , queryString :: String
   } deriving(Show)
 
+data WallOptions = WO
+  { accessToken_w :: String
+  , oid :: String
+  } deriving(Show)
+
 loginOptions :: Parser CmdOptions
 loginOptions = Login <$> (LoginOptions
   <$> strOption (metavar "APPID" & short 'a' & value "3128877" & help "Application ID, defaults to VKHS" )
@@ -84,6 +93,7 @@ opts m =
       ( progDesc "Login and print access token (also prints user_id and expiriration time)" ))
     & command "call" (info (Call <$> (CO
       <$> access_token_flag
+      <*> switch (long "preparse" & short 'p' & help "Preparse into Aeson format")
       <*> argument str (metavar "METHOD" & help "Method name")
       <*> argument str (metavar "PARAMS" & help "Method arguments, KEY=VALUE[,KEY2=VALUE2[,,,]]")))
       ( progDesc "Call VK API method" ))
@@ -96,7 +106,7 @@ opts m =
       <*> strOption
         ( metavar "FORMAT"
         & short 'f'
-        & value "id %o_%i title %t url %u"
+        & value "%o_%i %u\t%t"
         & help "Listing format, supported tags: %i %o %a %t %d %u"
         )
       <*> strOption
@@ -114,6 +124,11 @@ opts m =
       <*> strOption (long "query" & short 'q' & help "String to query")
       ))
       ( progDesc "Extract various user information"))
+    & command "wall" (info ( WallQ <$> (WO
+      <$> access_token_flag
+      <*> strOption (long "id" & short 'i' & help "Owner id")
+      ))
+      ( progDesc "Extract wall information"))
     )
 
 api_ :: (A.FromJSON a) => Env CallEnv -> String -> [(String,String)] -> IO a
@@ -121,6 +136,13 @@ api_ a b c = do
   r <- A.api' a b c
   case r of
     Right x -> return x
+    Left e -> hPutStrLn stderr e >> exitFailure
+
+api_str :: Env CallEnv -> String -> [(String,String)] -> IO String
+api_str a b c = do
+  r <- STR.api a b c
+  case r of
+    Right x -> return (U.toString x)
     Left e -> hPutStrLn stderr e >> exitFailure
 
 mr_format :: String -> MusicRecord -> String
@@ -155,10 +177,16 @@ cmd (Options v (Login (LoginOptions a u p))) = do
     printf "%s %s %s\n" at uid expin
 
 -- Call user-specified API
-cmd (Options v (Call (CO act mn args))) = do
+cmd (Options v (Call (CO act pp mn args))) = do
   let e = (envcall act) { verbose = v }
-  ea <- A.api e mn (fw (keyValues "," "=") args)
-  ifeither ea errexit (putStrLn . show)
+  let s = fw (keyValues "," "=") args
+  case pp of
+    False -> do
+      ea <- api_str e mn s
+      putStrLn (show ea)
+    True -> do
+      (ea :: A.Value) <- api_ e mn s
+      putStrLn $ PP.ppShow ea
 
 -- Query audio files
 cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
@@ -197,6 +225,15 @@ cmd (Options v (UserQ uo@(UO act qs))) = do
   putStrLn $ show ea
   -- ae <- checkRight ea
   -- processUQ uo ae
+
+-- List wall messages
+cmd (Options v (WallQ mo@(WO act wid))) = do
+  let e = (envcall act) { verbose = v }
+  (Response (SL len ws)) <- api_ e "wall.get" [("owner_id",wid)]
+  forM_ ws $ \w -> do
+    putStrLn (show $ wdate w)
+    putStrLn (wtext w)
+  printf "total %d\n" len
 
 type NameFormat = String
 

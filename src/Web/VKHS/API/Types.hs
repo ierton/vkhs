@@ -4,6 +4,7 @@ module Web.VKHS.API.Types where
 
 import Data.Typeable
 import Data.Data
+import Data.Text
 
 data Response a = Response a
   deriving(Show)
@@ -31,4 +32,14 @@ data UserRecord = UR
   , faculty_name :: Maybe String
   , graduation :: Maybe Int
   } deriving(Show,Data,Typeable)
+
+
+data WallRecord = WR
+  { wid :: Int
+  , to_id :: Int
+  , from_id :: Int
+  , wtext :: String
+  , wdate :: Int
+  } deriving(Show)
+
 

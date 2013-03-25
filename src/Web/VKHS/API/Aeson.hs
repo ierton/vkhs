@@ -7,6 +7,7 @@ module Web.VKHS.API.Aeson
     , module Web.VKHS.API.Types
     ) where
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Writer
@@ -38,6 +39,14 @@ parseGeneric a =
 
 instance FromJSON MusicRecord where
   parseJSON = parseGeneric
+
+instance FromJSON WallRecord where
+  parseJSON (Object o) = 
+    WR <$> (o .: "id")
+       <*> (o .: "to_id")
+       <*> (o .: "from_id")
+       <*> (o .: "text")
+       <*> (o .: "date")
 
 instance (FromJSON a) => FromJSON (SizedList [a]) where
   parseJSON (A.Array v) = do

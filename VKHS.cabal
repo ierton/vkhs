@@ -58,6 +58,7 @@ library
                      directory,
                      regexpr,
                      pretty-show,
-                     vector
+                     vector,
+                     text
   
 
