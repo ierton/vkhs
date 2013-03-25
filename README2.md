@@ -4,7 +4,7 @@ VKHS
 VKHS provides access to [Vkontakte][1] social network, popular mainly in Russia.
 Library can be used to login into the network as a standalone application (OAuth
 implicit flow as they call it). Having the access token, it is possible to call
-various API methods to query audio files or retrieving wall messages. For now,
+various API methods to query audio files or retrieve wall messages. For now,
 vkhs offers limited error detection and no captcha support.
 
 Installing
