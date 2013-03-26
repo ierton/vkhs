@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.3.0
+version:             0.3.1
 synopsis:            Provides access to Vkontakte social network via public API
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -26,7 +26,7 @@ executable vkq
 
 library
   hs-source-dirs:    src
-  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data  
+  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data, Text.Namefilter, Text.PFormat
   exposed-modules:   Web.VKHS
                      Web.VKHS.API
                      Web.VKHS.API.Aeson
