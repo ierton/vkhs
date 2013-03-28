@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.3.2
+version:             0.3.3
 synopsis:            Provides access to Vkontakte social network via public API
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -12,7 +12,7 @@ author:              Sergey Mironov
 maintainer:          ierton@gmail.com
 copyright:           Copyright (c) 2012, Sergey Mironov
 category:            Web
-build-type:          Simple
+build-type:          Custom
 cabal-version:       >=1.6
 homepage:            http://github.com/ierton/vkhs
 
@@ -21,12 +21,47 @@ source-repository head
     location: https://github.com/ierton/vkhs.git
 
 executable vkq
+  extra-libraries: curl
   hs-source-dirs:    src
   main-is:           VKQ.hs
+  build-tools:     hsc2hs
+  ghc-options:     -Wall -fwarn-tabs
+  other-modules:
+    Network.Curlhs.Base,
+    Network.Curlhs.Core,
+    Network.Curlhs.Easy,
+    Network.Curlhs.Setopt,
+    Network.Curlhs.Errors,
+    Network.Curlhs.Types
+
 
 library
+  extra-libraries: curl
+  build-tools:     hsc2hs
+  ghc-options:     -Wall -fwarn-tabs
   hs-source-dirs:    src
-  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms, Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http, Network.Protocol.Cookie, Network.Protocol.Uri.Remap, Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer, Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser, Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data, Network.Protocol.Uri.Chars, Network.Protocol.Http.Status, Network.Protocol.Http.Printer, Network.Protocol.Http.Parser, Network.Protocol.Http.Headers, Network.Protocol.Http.Data, Text.Namefilter, Text.PFormat
+  other-modules:     Test.Debug, Test.Data, Test.API, Network.Shpider.Forms,
+    Network.Protocol.Uri, Network.Protocol.Mime, Network.Protocol.Http,
+    Network.Protocol.Cookie, Network.Protocol.Uri.Remap,
+    Network.Protocol.Uri.Query, Network.Protocol.Uri.Printer,
+    Network.Protocol.Uri.Path, Network.Protocol.Uri.Parser,
+    Network.Protocol.Uri.Encode, Network.Protocol.Uri.Data,
+    Network.Protocol.Uri.Chars, Network.Protocol.Http.Status,
+    Network.Protocol.Http.Printer, Network.Protocol.Http.Parser,
+    Network.Protocol.Http.Headers, Network.Protocol.Http.Data, Text.Namefilter,
+    Text.PFormat,
+    Network.Curlhs.Base,
+    Network.Curlhs.Core,
+    Network.Curlhs.Easy,
+    Network.Curlhs.Setopt,
+    Network.Curlhs.Errors,
+    Network.Curlhs.Types
+
+  -- maybe not elegant, but convenient during tests
+  -- if os(windows)
+  --   include-dirs:   .\curl-7.25.0-devel-mingw32\include
+  --   extra-lib-dirs: .\curl-7.25.0-devel-mingw32\bin
+
   exposed-modules:   Web.VKHS
                      Web.VKHS.API
                      Web.VKHS.API.Aeson
@@ -42,7 +77,6 @@ library
                      mtl ==2.1.*,
                      failure ==0.2.*,
                      bytestring >=0.10 && <0.11,
-                     curlhs ==0.0.*,
                      safe ==0.3.*,
                      parsec ==3.1.*,
                      split ==0.2.*,
@@ -58,6 +92,6 @@ library
                      regexpr,
                      pretty-show,
                      vector,
-                     text
+                     text,
+                     time
   
-
