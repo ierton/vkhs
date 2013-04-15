@@ -42,4 +42,9 @@ data WallRecord = WR
   , wdate :: Int
   } deriving(Show)
 
+data RespError = ER
+  { error_code :: Int
+  , error_msg :: String
+  } deriving(Show)
+
 

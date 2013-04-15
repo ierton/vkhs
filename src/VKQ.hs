@@ -6,13 +6,9 @@
 module Main where
 
 import Control.Monad
-import Control.Monad.Error
 import Data.Aeson as A
 import Data.Label.Abstract
-import Data.Typeable
-import Data.Data
 import Data.List
-import Data.Maybe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as U
 import Network.Protocol.Uri.Query
@@ -29,7 +25,7 @@ import Text.Show.Pretty as PP
 import Web.VKHS
 import Web.VKHS.Curl
 import Web.VKHS.API.Aeson as A
-import Web.VKHS.API as STR
+import Web.VKHS.API.Base as STR
 
 data Options = Options
   { verb :: Verbosity
@@ -74,59 +70,59 @@ data UserOptions = UO
 
 data WallOptions = WO
   { accessToken_w :: String
-  , oid :: String
+  , woid :: String
   } deriving(Show)
 
 loginOptions :: Parser CmdOptions
 loginOptions = Login <$> (LoginOptions
-  <$> strOption (metavar "APPID" & short 'a' & value "3128877" & help "Application ID, defaults to VKHS" )
-  <*> argument str (metavar "USER" & help "User name or email")
-  <*> argument str (metavar "PASS" & help "User password"))
+  <$> strOption (metavar "APPID" <> short 'a' <> value "3128877" <> help "Application ID, defaults to VKHS" )
+  <*> argument str (metavar "USER" <> help "User name or email")
+  <*> argument str (metavar "PASS" <> help "User password"))
 
 opts m =
-  let access_token_flag = strOption (short 'a' & m & metavar "ACCESS_TOKEN" &
+  let access_token_flag = strOption (short 'a' <> m <> metavar "ACCESS_TOKEN" <>
         help "Access token. Honores VKQ_ACCESS_TOKEN environment variable")
   in Options
-  <$> flag Normal Debug (long "verbose" & help "Be verbose")
+  <$> flag Normal Debug (long "verbose" <> help "Be verbose")
   <*> subparser (
     command "login" (info loginOptions
-      ( progDesc "Login and print access token (also prints user_id and expiriration time)" ))
-    & command "call" (info (Call <$> (CO
+      ( progDesc "Login and print access token (also prints user_id and expiration time)" ))
+    <> command "call" (info (Call <$> (CO
       <$> access_token_flag
-      <*> switch (long "preparse" & short 'p' & help "Preparse into Aeson format")
-      <*> argument str (metavar "METHOD" & help "Method name")
-      <*> argument str (metavar "PARAMS" & help "Method arguments, KEY=VALUE[,KEY2=VALUE2[,,,]]")))
+      <*> switch (long "preparse" <> short 'p' <> help "Preparse into Aeson format")
+      <*> argument str (metavar "METHOD" <> help "Method name")
+      <*> argument str (metavar "PARAMS" <> help "Method arguments, KEY=VALUE[,KEY2=VALUE2[,,,]]")))
       ( progDesc "Call VK API method" ))
-    & command "music" (info ( Music <$> (MO
+    <> command "music" (info ( Music <$> (MO
       <$> access_token_flag
-      <*> switch (long "list" & short 'l' & help "List music files")
+      <*> switch (long "list" <> short 'l' <> help "List music files")
       <*> strOption
         ( metavar "STR"
-        & long "query" & short 'q' & value [] & help "Query string")
+        <> long "query" <> short 'q' <> value [] <> help "Query string")
       <*> strOption
         ( metavar "FORMAT"
-        & short 'f'
-        & value "%o_%i %u\t%t"
-        & help "Listing format, supported tags: %i %o %a %t %d %u"
+        <> short 'f'
+        <> value "%o_%i %u\t%t"
+        <> help "Listing format, supported tags: %i %o %a %t %d %u"
         )
       <*> strOption
         ( metavar "FORMAT"
-        & short 'F'
-        & value "%a - %t"
-        & help "FileName format, supported tags: %i %o %a %t %d %u"
+        <> short 'F'
+        <> value "%a - %t"
+        <> help "FileName format, supported tags: %i %o %a %t %d %u"
         )
-      <*> strOption (metavar "DIR" & short 'o' & help "Output directory" & value "")
-      <*> arguments str (metavar "RECORD_ID" & help "Download records")
+      <*> strOption (metavar "DIR" <> short 'o' <> help "Output directory" <> value "")
+      <*> arguments str (metavar "RECORD_ID" <> help "Download records")
       ))
       ( progDesc "List or download music files"))
-    & command "user" (info ( UserQ <$> (UO
+    <> command "user" (info ( UserQ <$> (UO
       <$> access_token_flag
-      <*> strOption (long "query" & short 'q' & help "String to query")
+      <*> strOption (long "query" <> short 'q' <> help "String to query")
       ))
       ( progDesc "Extract various user information"))
-    & command "wall" (info ( WallQ <$> (WO
+    <> command "wall" (info ( WallQ <$> (WO
       <$> access_token_flag
-      <*> strOption (long "id" & short 'i' & help "Owner id")
+      <*> strOption (long "id" <> short 'i' <> help "Owner id")
       ))
       ( progDesc "Extract wall information"))
     )
@@ -136,7 +132,7 @@ api_ a b c = do
   r <- A.api' a b c
   case r of
     Right x -> return x
-    Left e -> hPutStrLn stderr e >> exitFailure
+    Left e -> hPutStrLn stderr (show e) >> exitFailure
 
 api_str :: Env CallEnv -> String -> [(String,String)] -> IO String
 api_str a b c = do
@@ -173,13 +169,13 @@ cmd :: Options -> IO ()
 cmd (Options v (Login (LoginOptions a u p))) = do
   let e = (env a u p allAccess) { verbose = v }
   ea <- login e
-  ifeither ea errexit $ \(at,uid,expin) -> do
-    printf "%s %s %s\n" at uid expin
+  ifeither ea errexit $ \(at,usrid,expin) -> do
+    printf "%s %s %s\n" at usrid expin
 
 -- Call user-specified API
-cmd (Options v (Call (CO act pp mn args))) = do
+cmd (Options v (Call (CO act pp mn as))) = do
   let e = (envcall act) { verbose = v }
-  let s = fw (keyValues "," "=") args
+  let s = fw (keyValues "," "=") as
   case pp of
     False -> do
       ea <- api_str e mn s
@@ -189,7 +185,7 @@ cmd (Options v (Call (CO act pp mn args))) = do
       putStrLn $ PP.ppShow ea
 
 -- Query audio files
-cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
+cmd (Options v (Music (MO act _ q@(_:_) fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
   Response (SL len ms) <- api_ e "audio.search" [("q",q)]
   forM_ ms $ \m -> do
@@ -197,16 +193,16 @@ cmd (Options v (Music mo@(MO act _ q@(_:_) fmt _ _ _))) = do
   printf "total %d\n" len
 
 -- List audio files 
-cmd (Options v (Music mo@(MO act True [] fmt _ _ _))) = do
+cmd (Options v (Music (MO act True [] fmt _ _ _))) = do
   let e = (envcall act) { verbose = v }
   (Response ms) <- api_ e "audio.get" []
   forM_ ms $ \m -> do
     printf "%s\n" (mr_format fmt m)
-cmd (Options v (Music mo@(MO act False [] _ ofmt odir []))) = do
+cmd (Options _ (Music (MO _ False [] _ _ _ []))) = do
   errexit "Music record ID is not specified (see --help)"
 
 -- Download audio files
-cmd (Options v (Music mo@(MO act False [] _ ofmt odir rid))) = do
+cmd (Options v (Music (MO act False [] _ ofmt odir rid))) = do
   let e = (envcall act) { verbose = v }
   Response ms <- api_ e "audio.getById" [("audios", concat $ intersperse "," rid)]
   forM_ ms $ \m -> do
@@ -214,11 +210,12 @@ cmd (Options v (Music mo@(MO act False [] _ ofmt odir rid))) = do
     r <- vk_curl_file e (url m) $ \ bs -> do
       BS.hPut h bs
     checkRight r
-    printf "%d_%d\n" (owner_id m) (aid m)
-    printf "%s\n" (title m)
-    printf "%s\n" fp
+    _ <- printf "%d_%d\n" (owner_id m) (aid m)
+    _ <- printf "%s\n" (title m)
+    _ <- printf "%s\n" fp
+    return ()
 
-cmd (Options v (UserQ uo@(UO act qs))) = do
+cmd (Options v (UserQ (UO act qs))) = do
   let e = (envcall act) { verbose = v }
   print qs
   ea <- A.api e "users.search" [("q",qs),("fields","uid,first_name,last_name,photo,education")]
@@ -227,9 +224,9 @@ cmd (Options v (UserQ uo@(UO act qs))) = do
   -- processUQ uo ae
 
 -- List wall messages
-cmd (Options v (WallQ mo@(WO act wid))) = do
+cmd (Options v (WallQ (WO act oid))) = do
   let e = (envcall act) { verbose = v }
-  (Response (SL len ws)) <- api_ e "wall.get" [("owner_id",wid)]
+  (Response (SL len ws)) <- api_ e "wall.get" [("owner_id",oid)]
   forM_ ws $ \w -> do
     putStrLn (show $ wdate w)
     putStrLn (wtext w)

@@ -4,36 +4,42 @@
 module Web.VKHS.API.Aeson
     ( api
     , api'
+    , Base.envcall
     , module Web.VKHS.API.Types
     ) where
 
 import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Writer
 import Control.Monad.Error
 
 import Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import Data.Aeson (FromJSON, (.:), (.:?))
+import Data.Aeson.Types as A
 import Data.Aeson.Generic as AG
 import Data.ByteString.Lazy as BS
-import Data.Typeable
 import Data.Data
-import Data.Vector as V (head, tail, toList)
-
+import Data.Vector as V (head, tail)
+import Text.Printf
 import Web.VKHS.Types
 import Web.VKHS.API.Types
-import qualified Web.VKHS.API as Base
+import qualified Web.VKHS.API.Base as Base
+
+parseJSON_obj_error :: String -> A.Value -> A.Parser a
+parseJSON_obj_error name o = fail $
+  printf "parseJSON: %s expects object, got %s" (show name) (show o)
+
+parseJSON_arr_error :: String -> A.Value -> A.Parser a
+parseJSON_arr_error name o = fail $
+  printf "parseJSON: %s expects array, got %s" (show name) (show o)
 
 instance (FromJSON a) => FromJSON (Response a) where
   parseJSON (A.Object v) = do
     a <- v .: "response"
     x <- A.parseJSON a
     return (Response x)
+  parseJSON o = parseJSON_obj_error "Response" o
 
-parseGeneric a =
-  case AG.fromJSON a of
+parseGeneric :: (Data a) => A.Value -> A.Parser a
+parseGeneric val =
+  case AG.fromJSON val of
     A.Success a -> return a
     A.Error s -> fail $ "parseGeneric fails:" ++ s
 
@@ -47,20 +53,38 @@ instance FromJSON WallRecord where
        <*> (o .: "from_id")
        <*> (o .: "text")
        <*> (o .: "date")
+  parseJSON o = parseJSON_obj_error "WallRecord" o
 
 instance (FromJSON a) => FromJSON (SizedList [a]) where
   parseJSON (A.Array v) = do
     n <- A.parseJSON (V.head v)
     t <- A.parseJSON (A.Array (V.tail v))
     return (SL n t)
+  parseJSON o = parseJSON_arr_error "SizedList" o
 
-api' :: (A.FromJSON a) => Env CallEnv -> String -> [(String,String)] -> IO (Either String a)
-api' e mn mp = runErrorT $ do
-  e <- ErrorT (Base.api e mn mp)
-  let check (Just x) = return x
-      check (Nothing) = fail $ "AESON: error parsing JSON: " ++ show e
-  check $ A.decode $ BS.fromStrict e
+instance FromJSON RespError where
+  parseJSON (Object o) = do
+    (Object e) <- o .: "error"
+    ER <$> (e .: "error_code")
+       <*> (e .: "error_msg")
+  parseJSON o = parseJSON_obj_error "RespError" o
 
-api :: Env CallEnv -> String -> [(String,String)] -> IO (Either String A.Value)
+data APIError = AIE RespError | AIE_other String
+  deriving(Show)
+
+instance Error APIError where
+  strMsg x =  AIE_other x
+
+api' :: (A.FromJSON a) => Env CallEnv -> String -> [(String,String)] -> IO (Either APIError a)
+api' env mn mp = runErrorT $ do
+  e <- BS.fromStrict <$> ErrorT (either (Left . AIE_other) (Right . id) <$> (Base.api env mn mp))
+  case (A.decode e) of
+    Just x -> return x
+    Nothing -> do
+      case (A.decode e) of
+        Just x -> throwError (AIE x)
+        Nothing -> throwError $ AIE_other $ "AESON: error parsing JSON: " ++ show e
+
+api :: Env CallEnv -> String -> [(String,String)] -> IO (Either APIError A.Value)
 api = api'
 
