@@ -29,8 +29,7 @@ apiWrapped nr name args = do
   (at,_,_) <- get
   res <- liftIO $ VK.api' (callEnv env at) name args
   case (nr,res) of
-    (_, Right a) -> return a
-    (_, Left e) -> throwError e
+    (0, Left e) -> throwError e
     (_, Left e@(AIE_other _)) -> throwError e
     (x, Left e@(AIE (ER c m))) -> do
       res <- liftIO $ VK.login env
@@ -38,4 +37,5 @@ apiWrapped nr name args = do
         Left err -> throwError (AIE_other err)
         Right at' -> do
           put at' >> apiWrapped (x-1) name args
+    (_, Right a) -> return a
 
