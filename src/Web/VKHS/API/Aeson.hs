@@ -2,11 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Web.VKHS.API.Aeson
-    ( api
-    , api'
-    , Base.envcall
-    , module Web.VKHS.API.Types
-    ) where
+  ( api
+  , api'
+  , Base.envcall
+  , APIError(..)
+  , module Web.VKHS.API.Types
+  ) where
 
 import Control.Applicative
 import Control.Monad.Error

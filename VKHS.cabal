@@ -66,6 +66,7 @@ library
                      Web.VKHS.API
                      Web.VKHS.API.Aeson
                      Web.VKHS.API.Types
+                     Web.VKHS.API.Monad
                      Web.VKHS.Curl
                      Web.VKHS.Login
                      Web.VKHS.Types
