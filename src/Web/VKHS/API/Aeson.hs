@@ -70,21 +70,23 @@ instance FromJSON RespError where
        <*> (e .: "error_msg")
   parseJSON o = parseJSON_obj_error "RespError" o
 
-data APIError = AIE RespError | AIE_other String
+data APIError = APIE_resp RespError | APIE_other String | APIE_badAccessToken
   deriving(Show)
 
 instance Error APIError where
-  strMsg x =  AIE_other x
+  strMsg x =  APIE_other x
 
 api' :: (A.FromJSON a) => Env CallEnv -> String -> [(String,String)] -> IO (Either APIError a)
-api' env mn mp = runErrorT $ do
-  e <- BS.fromStrict <$> ErrorT (either (Left . AIE_other) (Right . id) <$> (Base.api env mn mp))
-  case (A.decode e) of
-    Just x -> return x
-    Nothing -> do
-      case (A.decode e) of
-        Just x -> throwError (AIE x)
-        Nothing -> throwError $ AIE_other $ "AESON: error parsing JSON: " ++ show e
+api' env mn mp
+  | Prelude.null ((access_token . sub) env) = return (Left APIE_badAccessToken)
+  | otherwise = runErrorT $ do
+    e <- BS.fromStrict <$> ErrorT (either (Left . APIE_other) (Right . id) <$> (Base.api env mn mp))
+    case (A.decode e) of
+      Just x -> return x
+      Nothing -> do
+        case (A.decode e) of
+          Just x -> throwError (APIE_resp x)
+          Nothing -> throwError $ APIE_other $ "AESON: error parsing JSON: " ++ show e
 
 api :: Env CallEnv -> String -> [(String,String)] -> IO (Either APIError A.Value)
 api = api'

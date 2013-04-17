@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.3.3
+version:             0.4.1
 synopsis:            Provides access to Vkontakte social network via public API
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -20,6 +20,20 @@ source-repository head
     type:     git
     location: https://github.com/ierton/vkhs.git
 
+executable vknews
+  extra-libraries: curl
+  hs-source-dirs:    src
+  main-is:           VKNews.hs
+  build-tools:     hsc2hs
+  ghc-options:     -Wall -fwarn-tabs
+  other-modules:
+    Network.Curlhs.Base,
+    Network.Curlhs.Core,
+    Network.Curlhs.Easy,
+    Network.Curlhs.Setopt,
+    Network.Curlhs.Errors,
+    Network.Curlhs.Types
+
 executable vkq
   extra-libraries: curl
   hs-source-dirs:    src
@@ -36,7 +50,7 @@ executable vkq
 
 
 library
-  extra-libraries: curl
+  --extra-libraries: curl
   build-tools:     hsc2hs
   ghc-options:     -Wall -fwarn-tabs
   hs-source-dirs:    src
@@ -71,7 +85,7 @@ library
                      Web.VKHS.Login
                      Web.VKHS.Types
 
-  build-depends:     base >=4.5 && <5,
+  build-depends:     base >=4.6 && <5,
                      containers ==0.5.*,
                      tagsoup-parsec ==0.0.*,
                      tagsoup ==0.12.*,
