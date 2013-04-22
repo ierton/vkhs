@@ -4,17 +4,19 @@ module Main where
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Trans
+import Control.Monad.State
 import Control.Monad
 import Data.Aeson
 import Data.Maybe
 import Data.Either
+import Data.Time.Clock
 import Options.Applicative
 import System.Environment
 import System.Exit
 import System.IO
 import Text.Printf
-import Web.VKHS as VK
-import Web.VKHS.API.Aeson as VK
+import Text.RegexPR
+import Web.VKHS as VK hiding (api,api')
 import Web.VKHS.API.Monad as VK
 
 data Options = Options
@@ -26,6 +28,19 @@ data Options = Options
   , password :: String
   , vk_group_id :: String
   } deriving(Show)
+
+
+data Pirozhok = Pirozhok
+  { plines :: String
+  , pdate :: UTCTime
+  }
+
+type PState a = StateT UTCTime (VKAPI IO) a
+
+parseP wr@(WR _ _ _ t d) = Pirozhok poetry date
+  where
+    poetry = gsubRegexPR "<br>" "\n" $ takeWhile (/= '©') t
+    date = publishedAt wr
 
 vkhs_app_id = "3128877"
 
@@ -45,28 +60,33 @@ opts at = Options
 cmd :: Options -> IO ()
 cmd (Options v aid at pollint u p gid) = run $ do
   forever $ do
-    Response (SL len ws) <- apiM' "wall.get" [("owner_id",gid_piro)]
-    liftIO $ putStrLn (show $ head (ws :: [WallRecord]))
+    t <- get
+    Response (SL len ws) <- lift $ api' "wall.get" [("owner_id",gid_piro)]
+    let pzh = parseP (head ws)
+    if (pdate pzh <= t)
+      then liftIO $ do
+        hPutStrLn stderr $ 
+          printf "old pirozhok dated %s while now %s " (show (pdate pzh)) (show t)
+        hPutStrLn stderr (plines pzh)
+      else do
+        liftIO $ putStr (plines pzh)
+        put (pdate pzh)
     liftIO $ threadDelay (1000 * 1000 * pollint); -- convert sec to us
 
     where
 
       run vk = do
+        t <- getCurrentTime
         let e = (VK.env aid u p VK.allAccess) { verbose = v }
-        r <- runVKAPI vk ([],[],[]) e
+        let ma = runStateT vk t
+        r <- runVKAPI ma ([],[],[]) e
         case r of
           Left er -> do
             hPutStrLn stderr (show er)
             exitFailure
-          Right (a,_) -> return a
+          Right ((a,_),_) -> return a
 
 main = do
   at <- fromMaybe [] <$> lookupEnv env_var_name
   execParser (info (opts at) idm) >>= cmd
-
--- algo = do
---   forever $ do
---     f <- fetch
---     extract f
---     sleep
 

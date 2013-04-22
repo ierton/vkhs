@@ -4,7 +4,8 @@ module Web.VKHS.API.Types where
 
 import Data.Typeable
 import Data.Data
-import Data.Text
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 
 data Response a = Response a
   deriving(Show)
@@ -33,7 +34,6 @@ data UserRecord = UR
   , graduation :: Maybe Int
   } deriving(Show,Data,Typeable)
 
-
 data WallRecord = WR
   { wid :: Int
   , to_id :: Int
@@ -41,6 +41,10 @@ data WallRecord = WR
   , wtext :: String
   , wdate :: Int
   } deriving(Show)
+
+publishedAt :: WallRecord -> UTCTime
+publishedAt wr = posixSecondsToUTCTime $ fromIntegral $ wdate wr
+
 
 data RespError = ER
   { error_code :: Int
