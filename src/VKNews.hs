@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Main where
 
@@ -5,10 +7,12 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Trans
 import Control.Monad.State
+import Control.Monad.Error
 import Control.Monad
 import Data.Aeson
 import Data.Maybe
 import Data.Either
+import Data.Monoid
 import Data.Time.Clock
 import Options.Applicative
 import System.Environment
@@ -26,9 +30,8 @@ data Options = Options
   , vk_poll_interval_sec :: Int
   , username :: String
   , password :: String
-  , vk_group_id :: String
+  -- , vk_group_id :: String
   } deriving(Show)
-
 
 data Pirozhok = Pirozhok
   { plines :: String
@@ -43,20 +46,54 @@ type PState a = StateT UTCTime (VKAPI IO) a
 
 pirozhok wr@(WR _ _ _ t d) = Pirozhok <$> poetry <*> date
   where
-    poetry = txt >>= noempty >>= flt >>= Just . unlines
-    txt = pure $ lines $ gsubRegexPR "<br>" "\n" $ takeWhile (/= '©') t
-    noempty ls = pure $ filter (/=[]) ls
-    flt ls | length ls >4 = Nothing
-           | otherwise = pure ls
+    poetry = txt >>= nonempty >>= four >>=
+             maxlet >>= (pure . unlines)
     date = pure (publishedAt wr)
+
+    txt = pure $ lines $ gsubRegexPR "<br>" "\n" $ takeWhile (/= '©') t
+    nonempty ls = pure $ filter (/=[]) ls
+    four ls | length ls >4 = Nothing
+            | otherwise = pure ls
+    maxlet ls | (sum $ map length ls) < 250 = Nothing
+              | otherwise = pure ls
+
+instance Error (String,Maybe a) where
+  strMsg s = (s,Nothing)
+
+pirozhok2 d' wr@(WR _ _ _ t _) = Pirozhok <$> poetry <*> date
+  where
+    poetry = txt >>= nonempty >>= four >>=
+             maxlet >>= (pure . unlines)
+    date = check (publishedAt wr) where
+      check d | d <= d' = oops $ "older than " ++ (show d')
+              | otherwise = pure d
+    txt = pure $ lines $ gsubRegexPR "<br>" "\n" $ takeWhile (/= '©') t
+    nonempty ls = pure $ filter (/=[]) ls
+    four ls | length ls >4 = oops "more than 4 lines"
+            | otherwise = pure ls
+    maxlet ls | (sum $ map length ls) > 250 = oops "more than 250 letters"
+              | otherwise = pure ls
+    oops s = throwError (s, Just wr)
+
+pirozhki = do
+  Response (SL len ws) <- lift $ VK.api' "wall.get" [("owner_id",gid_piro)]
+  d <- get
+  let ps = map (pirozhok2 d) ws
+  let d' = maxtime d (map pdate $ rights ps)
+  forM (lefts ps) $ \(s,wr) -> do
+    liftIO $ hPutStrLn stderr $ printf "Rejecting record %s. Reason: %s" (maybe "?" (show . wid) wr) s
+  when (d' > d) $ do
+    liftIO $ hPutStrLn stderr $ printf "Updating time to %s" (show d')
+    (put d')
+  return (rights ps)
+  where
+    maxtime d [] = d
+    maxtime d ps = maximum ps
+    gid_piro = "-28122932"
 
 new_enough d (Pirozhok _ d') = d' > d
 
-vkhs_app_id = "3128877"
-
 env_var_name = "VKNEWS_ACCESS_TOKEN"
-
-gid_piro = "-28122932"
 
 opts at = Options
   <$> flag Normal Debug (long "verbose" <> help "Be verbose")
@@ -65,23 +102,22 @@ opts at = Options
   <*> option (long "poll-interval" <> short 'i' <> value 20 <> help "Poll interval [sec]")
   <*> argument str (metavar "USERNAME" <> help "User name")
   <*> strOption (metavar "STR" <> long "password" <> short 'p' <> value "-" <> help "Password")
-  <*> argument str (metavar "GROUPID" <> help "Vkontakte ID of the group to read the news from")
+  -- <*> argument str (metavar "GROUPID" <> help "Vkontakte ID of the group to read the news from")
+  where
+    vkhs_app_id = "3128877"
+
 
 cmd :: Options -> IO ()
-cmd (Options v aid at pollint u p gid) = run $ do
+cmd (Options v aid at pollint u p) = run $ do
   forever $ do
-    d <- getTime
-    Response (SL len ws) <- callVK "wall.get" [("owner_id",gid_piro)]
-    forM (to_pirozhok d ws) $ \p@(Pirozhok text d') -> do
+    ps <- pirozhki
+    forM ps $ \p@(Pirozhok text d') -> do
         pprint p
         pmsg []
-        putMaxTime d'
+
     sleep_sec pollint
 
     where
-
-      to_pirozhok d ws = filter (new_enough d) $ catMaybes $ map pirozhok ws
-      -- to_pirozhok d ws = catMaybes $ map pirozhok ws
 
       run vk = do
         t <- getCurrentTime
@@ -98,13 +134,8 @@ cmd (Options v aid at pollint u p gid) = run $ do
 
       pmsg s = liftIO $ putStrLn s
 
-      callVK a b = lift $ api' a b
-
-      putMaxTime d' = get >>= \d -> if d' > d then put d' else return ()
-
-      getTime = get
-
       sleep_sec s = liftIO $ threadDelay (1000 * 1000 * s)
+
 
 main = do
   at <- fromMaybe [] <$> lookupEnv env_var_name
