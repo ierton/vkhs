@@ -6,6 +6,7 @@ module Main where
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Trans
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Error
 import Control.Monad
@@ -78,12 +79,15 @@ opts at = Options
 pirozhki = do
   Response (SL len ws) <- lift $ VK.api' "wall.get" [("owner_id",gid_piro)]
   d <- get
+  e <- ask
   let ps = map (pirozhok d) ws
   let d' = maxtime d (map pdate $ rights ps)
   forM (lefts ps) $ \(s,wr) -> do
-    liftIO $ hPutStrLn stderr $ printf "Rejecting record %s. Reason: %s" (maybe "?" (show . wid) wr) s
+    when (verbose e >= Trace) $ do
+      liftIO $ hPutStrLn stderr $ printf "Rejecting record %s. Reason: %s" (maybe "?" (show . wid) wr) s
   when (d' > d) $ do
-    liftIO $ hPutStrLn stderr $ printf "Updating time to %s" (show d')
+    when (verbose e >= Trace) $ do
+      liftIO $ hPutStrLn stderr $ printf "Updating time to %s" (show d')
     (put d')
   return (rights ps)
   where
