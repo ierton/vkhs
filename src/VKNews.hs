@@ -62,6 +62,19 @@ pirozhok d' wr@(WR _ _ _ t _) = Pirozhok <$> poetry <*> date
               | otherwise = pure ls
     oops s = throwError (s, Just wr)
 
+env_var_name = "VKNEWS_ACCESS_TOKEN"
+
+opts at = Options
+  <$> flag Normal Debug (long "verbose" <> help "Be verbose")
+  <*> strOption (long "application-id" <> short 'a' <> value vkhs_app_id <> help (printf "Application ID (can be set via %s)" env_var_name))
+  <*> strOption (long "access-token" <> short 't' <> value at <> help "Access token")
+  <*> option (long "poll-interval" <> short 'i' <> value 20 <> help "Poll interval [sec]")
+  <*> argument str (metavar "USERNAME" <> help "User name")
+  <*> strOption (metavar "STR" <> long "password" <> short 'p' <> value "-" <> help "Password")
+  -- <*> argument str (metavar "GROUPID" <> help "Vkontakte ID of the group to read the news from")
+  where
+    vkhs_app_id = "3128877"
+
 pirozhki = do
   Response (SL len ws) <- lift $ VK.api' "wall.get" [("owner_id",gid_piro)]
   d <- get
@@ -78,27 +91,11 @@ pirozhki = do
     maxtime d ps = maximum ps
     gid_piro = "-28122932"
 
-new_enough d (Pirozhok _ d') = d' > d
-
-env_var_name = "VKNEWS_ACCESS_TOKEN"
-
-opts at = Options
-  <$> flag Normal Debug (long "verbose" <> help "Be verbose")
-  <*> strOption (long "application-id" <> short 'a' <> value vkhs_app_id <> help (printf "Application ID (can be set via %s)" env_var_name))
-  <*> strOption (long "access-token" <> short 't' <> value at <> help "Access token")
-  <*> option (long "poll-interval" <> short 'i' <> value 20 <> help "Poll interval [sec]")
-  <*> argument str (metavar "USERNAME" <> help "User name")
-  <*> strOption (metavar "STR" <> long "password" <> short 'p' <> value "-" <> help "Password")
-  -- <*> argument str (metavar "GROUPID" <> help "Vkontakte ID of the group to read the news from")
-  where
-    vkhs_app_id = "3128877"
-
-
 cmd :: Options -> IO ()
-cmd (Options v aid at pollint u p) = run $ do
+cmd (Options v apid at pollint u pass) = run $ do
   forever $ do
     ps <- pirozhki
-    forM ps $ \p@(Pirozhok text d') -> do
+    forM ps $ \p -> do
         pprint p
         pmsg []
     sleep_sec pollint
@@ -107,7 +104,7 @@ cmd (Options v aid at pollint u p) = run $ do
 
       run vk = do
         t <- getCurrentTime
-        let e = (VK.env aid u p VK.allAccess) { verbose = v }
+        let e = (VK.env apid u pass VK.allAccess) { verbose = v }
         let ma = runStateT vk t
         r <- runVKAPI ma ([],[],[]) e
         case r of
@@ -123,7 +120,10 @@ cmd (Options v aid at pollint u p) = run $ do
       sleep_sec s = liftIO $ threadDelay (1000 * 1000 * s)
 
 
+main :: IO ()
 main = do
+  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr NoBuffering
   at <- fromMaybe [] <$> lookupEnv env_var_name
   execParser (info (opts at) idm) >>= cmd
 
