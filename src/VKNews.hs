@@ -44,23 +44,10 @@ pprint p = liftIO $ do
 
 type PState a = StateT UTCTime (VKAPI IO) a
 
-pirozhok wr@(WR _ _ _ t d) = Pirozhok <$> poetry <*> date
-  where
-    poetry = txt >>= nonempty >>= four >>=
-             maxlet >>= (pure . unlines)
-    date = pure (publishedAt wr)
-
-    txt = pure $ lines $ gsubRegexPR "<br>" "\n" $ takeWhile (/= '©') t
-    nonempty ls = pure $ filter (/=[]) ls
-    four ls | length ls >4 = Nothing
-            | otherwise = pure ls
-    maxlet ls | (sum $ map length ls) < 250 = Nothing
-              | otherwise = pure ls
-
 instance Error (String,Maybe a) where
   strMsg s = (s,Nothing)
 
-pirozhok2 d' wr@(WR _ _ _ t _) = Pirozhok <$> poetry <*> date
+pirozhok d' wr@(WR _ _ _ t _) = Pirozhok <$> poetry <*> date
   where
     poetry = txt >>= nonempty >>= four >>=
              maxlet >>= (pure . unlines)
@@ -78,7 +65,7 @@ pirozhok2 d' wr@(WR _ _ _ t _) = Pirozhok <$> poetry <*> date
 pirozhki = do
   Response (SL len ws) <- lift $ VK.api' "wall.get" [("owner_id",gid_piro)]
   d <- get
-  let ps = map (pirozhok2 d) ws
+  let ps = map (pirozhok d) ws
   let d' = maxtime d (map pdate $ rights ps)
   forM (lefts ps) $ \(s,wr) -> do
     liftIO $ hPutStrLn stderr $ printf "Rejecting record %s. Reason: %s" (maybe "?" (show . wid) wr) s
@@ -114,7 +101,6 @@ cmd (Options v aid at pollint u p) = run $ do
     forM ps $ \p@(Pirozhok text d') -> do
         pprint p
         pmsg []
-
     sleep_sec pollint
 
     where
