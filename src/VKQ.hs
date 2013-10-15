@@ -61,6 +61,7 @@ data MusicOptions = MO
   , output_format :: String
   , out_dir :: String
   , records_id :: [String]
+  , skip_existing :: Bool
   } deriving(Show)
 
 data UserOptions = UO
@@ -113,6 +114,7 @@ opts m =
         )
       <*> strOption (metavar "DIR" <> short 'o' <> help "Output directory" <> value "")
       <*> arguments str (metavar "RECORD_ID" <> help "Download records")
+      <*> flag False True (long "skip-existing" <> help "Don't download existing files")
       ))
       ( progDesc "List or download music files"))
     <> command "user" (info ( UserQ <$> (UO
@@ -161,7 +163,7 @@ checkRight (Right a) = return a
 main :: IO ()
 main = do
   m <- maybe (idm) (value) <$> lookupEnv "VKQ_ACCESS_TOKEN"
-  execParser (info (opts m) idm) >>= cmd
+  execParser (info (helper <*> opts m) (fullDesc <> header "Vkontakte social network tool")) >>= cmd
 
 cmd :: Options -> IO ()
 
@@ -185,7 +187,7 @@ cmd (Options v (Call (CO act pp mn as))) = do
       putStrLn $ PP.ppShow ea
 
 -- Query audio files
-cmd (Options v (Music (MO act _ q@(_:_) fmt _ _ _))) = do
+cmd (Options v (Music (MO act _ q@(_:_) fmt _ _ _ _))) = do
   let e = (envcall act) { verbose = v }
   Response (SL len ms) <- api_ e "audio.search" [("q",q)]
   forM_ ms $ \m -> do
@@ -193,26 +195,30 @@ cmd (Options v (Music (MO act _ q@(_:_) fmt _ _ _))) = do
   printf "total %d\n" len
 
 -- List audio files 
-cmd (Options v (Music (MO act True [] fmt _ _ _))) = do
+cmd (Options v (Music (MO act True [] fmt _ _ _ _))) = do
   let e = (envcall act) { verbose = v }
   (Response ms) <- api_ e "audio.get" []
   forM_ ms $ \m -> do
     printf "%s\n" (mr_format fmt m)
-cmd (Options _ (Music (MO _ False [] _ _ _ []))) = do
+cmd (Options _ (Music (MO _ False [] _ _ _ [] _))) = do
   errexit "Music record ID is not specified (see --help)"
 
 -- Download audio files
-cmd (Options v (Music (MO act False [] _ ofmt odir rid))) = do
+cmd (Options v (Music (MO act False [] _ ofmt odir rid sk))) = do
   let e = (envcall act) { verbose = v }
   Response ms <- api_ e "audio.getById" [("audios", concat $ intersperse "," rid)]
   forM_ ms $ \m -> do
-    (fp, h) <- openFileMR odir ofmt m
-    r <- vk_curl_file e (url m) $ \ bs -> do
-      BS.hPut h bs
-    checkRight r
-    _ <- printf "%d_%d\n" (owner_id m) (aid m)
-    _ <- printf "%s\n" (title m)
-    _ <- printf "%s\n" fp
+    (fp, mh) <- openFileMR odir sk ofmt m
+    case mh of
+      Just h -> do
+        r <- vk_curl_file e (url m) $ \ bs -> do
+          BS.hPut h bs
+        checkRight r
+        printf "%d_%d\n" (owner_id m) (aid m)
+        printf "%s\n" (title m)
+        printf "%s\n" fp
+      Nothing -> do
+        hPutStrLn stderr (printf "File %s already exist, skipping" fp)
     return ()
 
 cmd (Options v (UserQ (UO act qs))) = do
@@ -234,19 +240,25 @@ cmd (Options v (WallQ (WO act oid))) = do
 
 type NameFormat = String
 
-openFileMR :: FilePath -> NameFormat -> MusicRecord -> IO (FilePath, Handle)
-openFileMR [] _ m = do
+-- Open file. Return filename and handle. Don't open file if it exists
+openFileMR :: FilePath -> Bool -> NameFormat -> MusicRecord -> IO (FilePath, Maybe Handle)
+openFileMR [] _ _ m = do
   let (_,ext) = splitExtension (url m)
   temp <- getTemporaryDirectory
   (fp,h) <- openBinaryTempFile temp ("vkqmusic"++ext)
-  return (fp,h)
-openFileMR dir fmt m = do
+  return (fp, Just h)
+openFileMR dir sk fmt m = do
   let (_,ext) = splitExtension (url m)
   let name = mr_format fmt m
-  let name' = replaceExtension name ext
+  let name' = replaceExtension name (takeWhile (/='?') ext)
   let fp =  (dir </> name') 
-  h <- openBinaryFile fp WriteMode
-  return (fp,h)
+  e <- doesFileExist fp
+  case (e && sk) of
+    True -> do
+      return (fp,Nothing)
+    False -> do
+      h <- openBinaryFile fp WriteMode
+      return (fp,Just h)
 
 -- data Collection a = MC {
 --   response :: [a]
