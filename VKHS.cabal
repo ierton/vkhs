@@ -1,6 +1,6 @@
 
 name:                VKHS
-version:             0.4.1
+version:             0.5.0
 synopsis:            Provides access to Vkontakte social network via public API
 description:
     Provides access to Vkontakte API methods. Library requires no interaction
@@ -69,7 +69,14 @@ library
     Network.Curlhs.Easy,
     Network.Curlhs.Setopt,
     Network.Curlhs.Errors,
-    Network.Curlhs.Types
+    Network.Curlhs.Types,
+    Data.Label.Abstract,
+    Data.Label.Derive,
+    Data.Label.Maybe,
+    Data.Label.MaybeM,
+    Data.Label.Pure,
+    Data.Label.PureM,
+    Data.Label
 
   -- maybe not elegant, but convenient during tests
   -- if os(windows)
@@ -86,22 +93,21 @@ library
                      Web.VKHS.Types
 
   build-depends:     base >=4.6 && <5,
-                     containers ==0.5.*,
+                     containers,
+                     mtl,
+                     bytestring,
                      tagsoup-parsec ==0.0.*,
                      tagsoup ==0.12.*,
-                     mtl ==2.1.*,
                      failure ==0.2.*,
-                     bytestring >=0.10 && <0.11,
                      safe ==0.3.*,
                      parsec ==3.1.*,
                      split ==0.2.*,
                      utf8-string ==0.3.*,
                      bimap ==0.2.*,
-                     template-haskell ==2.8.*,
+                     template-haskell,
                      transformers ==0.3.*,
-                     fclabels >=1.1.4 && <1.1.6,
-                     optparse-applicative >=0.4 && <0.6,
-                     aeson >= 0.6 && < 0.7,
+                     optparse-applicative,
+                     aeson,
                      filepath,
                      directory,
                      regexpr,
@@ -109,4 +115,4 @@ library
                      vector,
                      text,
                      time
-  
+
