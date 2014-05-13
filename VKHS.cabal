@@ -50,7 +50,7 @@ executable vkq
 
 
 library
-  --extra-libraries: curl
+  extra-libraries: curl
   build-tools:     hsc2hs
   ghc-options:     -Wall -fwarn-tabs
   hs-source-dirs:    src
