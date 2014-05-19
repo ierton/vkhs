@@ -3,10 +3,10 @@ module Web.VKHS.API.Base
     , envcall
     )  where
 
-import Control.Monad
-import Control.Monad.Trans
+import Control.Monad ()
+import Control.Monad.Error ()
 import Control.Monad.Writer
-import Control.Monad.Error
+import Control.Monad.Trans ()
 
 import Data.Label
 import qualified Data.ByteString.UTF8 as U
@@ -14,9 +14,9 @@ import qualified Data.ByteString as BS
 
 import Network.Curlhs.Core
 
-import Network.Protocol.Http
+import Network.Protocol.Http ()
 import Network.Protocol.Uri
-import Network.Protocol.Uri.Query
+import Network.Protocol.Uri.Query ()
 
 import Text.Printf
 
