@@ -130,7 +130,7 @@ License
 
 BSD3 license
 
-Copyright (c) 2012, Sergey Mironov <ierton@gmail.com>
+Copyright (c) 2014, Sergey Mironov <grrwlf@gmail.com>
 
 [1]: http://vk.com
 
