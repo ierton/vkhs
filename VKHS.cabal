@@ -50,7 +50,7 @@ executable vkq
 
 
 library
-  --extra-libraries: curl
+  extra-libraries: curl
   build-tools:     hsc2hs
   ghc-options:     -Wall -fwarn-tabs
   hs-source-dirs:    src
@@ -86,6 +86,7 @@ library
   exposed-modules:   Web.VKHS
                      Web.VKHS.API
                      Web.VKHS.API.Aeson
+                     Web.VKHS.API.Base
                      Web.VKHS.API.Types
                      Web.VKHS.API.Monad
                      Web.VKHS.Curl
